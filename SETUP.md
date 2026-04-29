@@ -13,8 +13,8 @@
 - ✅ Fixed `chest/route.ts` — added missing `icon` field to inventory insert
 - ✅ Added fallback for empty chest reward pool
 - ✅ Added input validation to answer and use-item routes
-- ✅ Replaced SQL `004_chests_and_perks.sql` with `004_inventory.sql` matching `inventory_items` table
-
+- ✅ Replaced SQL `004_chests_and_peadadarks.sql` with `004_inventory.sql` matching `inventory_items` table
+dadadad
 ---
 
 ## Prerequisites
