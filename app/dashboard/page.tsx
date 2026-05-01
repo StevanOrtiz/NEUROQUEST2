@@ -1,42 +1,34 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
 import { DashboardContent } from "@/components/dashboard/dashboard-content"
+import { UsageReportBootstrap } from "@/components/research/usage-report-bootstrap"
+import { getDashboardUser } from "@/lib/auth/dashboard-user"
 import { SUBJECTS } from "@/lib/subjects/config"
-import { StreakStatsCard } from "@/components/streak/streak-stats-cards"
-import { SusForm } from "@/components/sus/sus-form"
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user } = await getDashboardUser()
 
-  if (!user) redirect("/auth/login")
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single()
-
-  const { data: recentSessions } = await supabase
-    .from("game_sessions")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
-
-  const { data: subjectProgress } = await supabase
-    .from("user_subject_progress")
-    .select("*")
-    .eq("user_id", user.id)
+  const [{ data: profile }, { data: recentSessions }, { data: subjectProgress }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id,display_name,level,xp,total_games,total_correct,created_at,current_streak,longest_streak,last_activity_date,streak_updated_at,tutorial_completed,tutorial_skipped,tutorial_completed_at")
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("game_sessions")
+        .select("id,user_id,pdf_name,difficulty,total_questions,correct_answers,wrong_answers,lives_remaining,xp_earned,status,current_question_index,created_at,finished_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("user_subject_progress")
+        .select("subject_id,diagnostic_passed,subject_completed,completed_modules,completed_sections")
+        .eq("user_id", user.id),
+    ])
 
   const progressMap = Object.fromEntries(
     (subjectProgress ?? []).map((p) => [p.subject_id, p])
   )
 
-  // ── Tutorial visibility logic ──────────────────────────────────────────────
-  // Show only if XP is 0 AND tutorial has not been completed or skipped
   const showTutorial =
     (profile?.xp ?? 0) === 0 &&
     !profile?.tutorial_completed &&
@@ -44,13 +36,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {/* Streak card — wrapped with data-tutorial for the onboarding overlay */}
-      <div className="max-w-6xl mx-auto px-4 pt-4">
-        <div className="mb-4 max-w-xs" data-tutorial="streak">
-          <StreakStatsCard />
-        </div>
-      </div>
-
+      <UsageReportBootstrap />
       <DashboardContent
         profile={profile}
         recentSessions={recentSessions ?? []}
@@ -59,14 +45,6 @@ export default async function DashboardPage() {
         showTutorial={showTutorial}
         userId={user.id}
       />
-
-      {/* SUS Form — only shown to logged-in users, locked until streak>=3 & level>=3 */}
-      <div className="max-w-6xl mx-auto px-4 pb-10">
-        <SusForm
-          currentStreak={profile?.current_streak ?? 0}
-          level={profile?.level ?? 1}
-        />
-      </div>
     </>
   )
 }

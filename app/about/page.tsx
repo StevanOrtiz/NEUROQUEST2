@@ -1,4 +1,4 @@
-import { Swords, GraduationCap, Code2, Globe } from "lucide-react"
+import { Swords, GraduationCap, Code2 } from "lucide-react"
 import Link from "next/link"
 
 const team = [
@@ -42,21 +42,24 @@ export default function AboutPage() {
           </div>
           <span className="font-bold text-lg text-foreground">QuestMind</span>
         </Link>
-        <nav className="flex items-center gap-4">
-          <Link href="/about" className="text-sm text-foreground font-medium">
-            About Us
-          </Link>
+        <nav className="flex items-center gap-2">
           <Link
             href="/auth/login"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            Iniciar Sesion
+            Iniciar sesion
           </Link>
           <Link
             href="/auth/sign-up"
-            className="text-sm px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity"
+            className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             Registrarse
+          </Link>
+          <Link
+            href="/dashboard"
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            Ir al dashboard
           </Link>
         </nav>
       </header>

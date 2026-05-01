@@ -21,6 +21,7 @@ import {
   type PomodoroMode,
 } from "@/hooks/use-pomodoro-timer"
 import { cn } from "@/lib/utils"
+import { dispatchAchievementUnlock } from "@/lib/achievements/client-events"
 
 const MODE_CONFIG: Record<
   PomodoroMode,
@@ -75,6 +76,33 @@ export function PomodoroTimer() {
   const handleSaveSettings = () => {
     updateSettings(tempSettings)
     setShowSettings(false)
+  }
+
+  const handleStart = async () => {
+    start()
+    try {
+      const res = await fetch("/api/achievements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "first_pomodoro" }),
+      })
+      const data = await res.json()
+      if (data.achievement) {
+        dispatchAchievementUnlock(data.achievement)
+      } else {
+        window.dispatchEvent(
+          new CustomEvent("questmind:mascot-message", {
+            detail: { message: "Modo enfoque activado. Yo vigilo el reloj." },
+          })
+        )
+      }
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent("questmind:mascot-message", {
+          detail: { message: "Modo enfoque activado. Buen viaje." },
+        })
+      )
+    }
   }
 
   const currentConfig = MODE_CONFIG[mode]
@@ -309,7 +337,7 @@ export function PomodoroTimer() {
             </Button>
             <Button
               size="lg"
-              onClick={isRunning ? pause : start}
+              onClick={isRunning ? pause : handleStart}
               className={cn(
                 "min-w-24",
                 isRunning && "bg-rpg-xp text-rpg-xp-foreground hover:bg-rpg-xp/90"

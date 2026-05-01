@@ -1,14 +1,8 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
 import { InventoryClient } from "@/components/inventory/inventory-client"
+import { getDashboardUser } from "@/lib/auth/dashboard-user"
 
 export default async function InventoryPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect("/auth/login")
+  const { supabase, user } = await getDashboardUser()
 
   const [{ data: inventory }, { data: chests }] = await Promise.all([
     supabase

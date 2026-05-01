@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr"
+import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies"
 import { NextResponse, type NextRequest } from "next/server"
 
 function isProtectedPath(pathname: string) {
@@ -46,10 +47,11 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => {
+        setAll(cookiesToSet: { name: string; value: string; options?: Partial<ResponseCookie> }[]) {
+          // First apply to the request so downstream Server Components see them
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
-          })
+          )
 
           supabaseResponse = NextResponse.next({
             request,

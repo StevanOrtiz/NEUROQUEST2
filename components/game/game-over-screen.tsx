@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { Trophy, Skull, Star, Package, ArrowRight, Loader2, Check, BookOpen, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { SubjectContext } from "@/app/game/[sessionId]/page"
+import { dispatchAchievementUnlock, dispatchAchievementUnlocks } from "@/lib/achievements/client-events"
 
 interface GameOverScreenProps {
   status: "victory" | "defeat"
@@ -69,6 +70,15 @@ export function GameOverScreen({
           subjectCompleted: data.subjectCompleted,
           medalGranted: data.medalGranted,
         })
+        if (data.achievements?.length) {
+          dispatchAchievementUnlocks(data.achievements)
+        } else if (data.subjectCompleted) {
+          window.dispatchEvent(
+            new CustomEvent("questmind:mascot-message", {
+              detail: { message: "Materia completada. Eso merece una vuelta triunfal." },
+            })
+          )
+        }
       })
       .catch(() => {
         // Non-fatal: progress just won't be saved
@@ -92,6 +102,15 @@ export function GameOverScreen({
       .then((data) => {
         if (data.earned || data.reason?.includes("Ya existe")) {
           setChestSaved(true)
+          if (data.achievement) {
+            dispatchAchievementUnlock(data.achievement)
+          } else {
+            window.dispatchEvent(
+              new CustomEvent("questmind:mascot-message", {
+                detail: { message: "Cofre guardado. Huele a recompensa." },
+              })
+            )
+          }
         } else {
           setChestError(true)
         }

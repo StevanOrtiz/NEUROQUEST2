@@ -1,24 +1,16 @@
 import type { FC } from "react"
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { StreakProvider } from "@/lib/streak/streak-context"
 import { StreakNavBadge } from "@/components/streak/streak-nav-badge"
 import { buildStreakData } from "@/lib/streak/streak-utils"
+import { getDashboardUser } from "@/lib/auth/dashboard-user"
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect("/auth/login")
-  }
+  const { supabase, user } = await getDashboardUser()
 
   const { data: profile } = await supabase
     .from("profiles")

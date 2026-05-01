@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { GameClient } from "@/components/game/game-client"
+import { getDashboardUser } from "@/lib/auth/dashboard-user"
 
 interface GamePageProps {
   params: Promise<{ sessionId: string }>
@@ -15,10 +15,7 @@ export interface SubjectContext {
 
 export default async function GamePage({ params }: GamePageProps) {
   const { sessionId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect("/auth/login")
+  const { supabase, user } = await getDashboardUser()
 
   const { data: session } = await supabase
     .from("game_sessions")

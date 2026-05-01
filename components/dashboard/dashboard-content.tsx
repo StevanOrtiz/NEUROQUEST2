@@ -1,13 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState, type PointerEvent } from "react"
 import { motion } from "framer-motion"
 import { Profile, GameSession, getLevelProgress, DIFFICULTY_CONFIG } from "@/lib/types"
+import { AdhdScreeningCard } from "@/components/dashboard/adhd-screening-card"
 import { PdfUploadCard } from "@/components/dashboard/pdf-upload-card"
 import { StatsCard } from "@/components/dashboard/stats-card"
 import { SubjectsSidebar } from "@/components/dashboard/subjects-sidebar"
+import { StreakStatsCard } from "@/components/streak/streak-stats-cards"
+import { SusForm } from "@/components/sus/sus-form"
+import { TaskPendingNotifier } from "@/components/tasks/task-pending-notifier"
 import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay"
-import { Heart, Star, Trophy, Swords, Clock } from "lucide-react"
+import { ChevronDown, Heart, Star, Trophy, Swords, Clock } from "lucide-react"
 import type { Subject } from "@/lib/subjects/config"
 
 interface SubjectProgress {
@@ -38,6 +42,8 @@ export function DashboardContent({
   userId,
 }: DashboardContentProps) {
   const [, setRefreshKey] = useState(0)
+  const backgroundRef = useRef<HTMLDivElement>(null)
+  const frameRef = useRef<number | null>(null)
   const p = profile ?? {
     level: 1,
     xp: 0,
@@ -58,19 +64,52 @@ export function DashboardContent({
       ? Math.round((p.total_correct / (p.total_games * 10)) * 100)
       : 0
 
+  function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
+    const target = backgroundRef.current
+    if (!target) return
+
+    const rect = target.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current)
+    }
+
+    frameRef.current = requestAnimationFrame(() => {
+      target.style.setProperty("--dashboard-mouse-x", `${x}px`)
+      target.style.setProperty("--dashboard-mouse-y", `${y}px`)
+      target.style.setProperty("--dashboard-tilt-x", `${(x / rect.width - 0.5) * 18}px`)
+      target.style.setProperty("--dashboard-tilt-y", `${(y / rect.height - 0.5) * 18}px`)
+    })
+  }
+
   return (
     <>
       {/* ── Tutorial Overlay — renders as a portal into document.body ── */}
       <TutorialOverlay show={showTutorial} userId={userId} />
+      <TaskPendingNotifier />
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row gap-6">
+      <div
+        ref={backgroundRef}
+        className="dashboard-main-bg w-full max-w-[1540px] mx-auto px-6 py-6"
+        onPointerMove={handlePointerMove}
+      >
+        <div className="grid min-h-[calc(100vh-96px)] items-start gap-6 xl:grid-cols-[320px_minmax(560px,1fr)_320px] 2xl:grid-cols-[340px_minmax(640px,1fr)_340px]">
+          <aside className="order-2 xl:order-1">
+            <div className="space-y-4 xl:sticky xl:top-24">
+              <div data-tutorial="streak">
+                <StreakStatsCard />
+              </div>
+              <AdhdScreeningCard />
+            </div>
+          </aside>
           {/* ── Main content ── */}
-          <div className="flex-1 min-w-0">
+          <div className="order-1 xl:order-2 min-w-0">
 
             {/* Welcome section — Step 1 target */}
             <motion.div
-              className="mb-8"
+              className="mb-6 rounded-xl border border-border/40 bg-card/70 p-6"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               data-tutorial="welcome"
@@ -84,7 +123,7 @@ export function DashboardContent({
                 <p className="text-muted-foreground">
                   Nivel {p.level} &middot; {p.xp} / {nextLevelXp} XP
                 </p>
-                <div className="mt-3 h-2.5 rounded-full bg-secondary overflow-hidden max-w-md">
+                <div className="mt-3 h-2.5 rounded-full bg-secondary overflow-hidden w-full">
                   <motion.div
                     className="h-full rounded-full bg-rpg-xp"
                     initial={{ width: 0 }}
@@ -97,7 +136,7 @@ export function DashboardContent({
 
             {/* Stats row — Step 3 target */}
             <div
-              className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"
+              className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"
               data-tutorial="stats"
             >
               <StatsCard icon={Star}   label="Nivel"     value={p.level}          color="text-rpg-gold"   />
@@ -111,18 +150,27 @@ export function DashboardContent({
               <PdfUploadCard onGameCreated={() => setRefreshKey((k) => k + 1)} />
             </div>
 
+            <SusForm
+              currentStreak={profile?.current_streak ?? 0}
+              level={profile?.level ?? 1}
+            />
+
             {/* Recent sessions */}
             {recentSessions.length > 0 && (
-              <motion.div
-                className="mt-8"
+              <motion.details
+                className="group mt-6 rounded-xl border border-border/50 bg-card/80"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
               >
-                <h2 className="text-lg font-semibold text-foreground mb-4">
-                  Partidas recientes
-                </h2>
-                <div className="flex flex-col gap-2">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">Partidas recientes</h2>
+                    <p className="text-xs text-muted-foreground">Historial de tus ultimas aventuras</p>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="flex flex-col gap-2 border-t border-border/40 p-3">
                   {recentSessions.map((session) => (
                     <div
                       key={session.id}
@@ -170,19 +218,19 @@ export function DashboardContent({
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </motion.details>
             )}
           </div>
 
           {/* ── Subjects sidebar — Step 6 target ── */}
           <motion.div
-            className="lg:w-80 shrink-0"
+            className="order-3 min-w-0"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
             data-tutorial="subjects-sidebar"
           >
-            <div className="lg:sticky lg:top-20">
+            <div className="xl:sticky xl:top-24 xl:h-[calc(100vh-120px)]">
               <SubjectsSidebar
                 subjects={subjects}
                 progressMap={subjectProgressMap}

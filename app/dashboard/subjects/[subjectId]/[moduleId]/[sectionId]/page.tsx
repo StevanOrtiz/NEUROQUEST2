@@ -1,10 +1,10 @@
 // app/dashboard/subjects/[subjectId]/[moduleId]/[sectionId]/page.tsx
 // Shows theory content for a section + button to start the quiz.
 
-import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { getSubjectById } from "@/lib/subjects/config"
 import { SectionClient } from "@/components/subjects/section-client"
+import { getDashboardUser } from "@/lib/auth/dashboard-user"
 
 interface SectionPageProps {
   params: Promise<{ subjectId: string; moduleId: string; sectionId: string }>
@@ -12,12 +12,7 @@ interface SectionPageProps {
 
 export default async function SectionPage({ params }: SectionPageProps) {
   const { subjectId, moduleId, sectionId } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) redirect("/auth/login")
+  const { supabase, user } = await getDashboardUser()
 
   const subject = getSubjectById(subjectId)
   if (!subject) redirect("/dashboard/subjects")

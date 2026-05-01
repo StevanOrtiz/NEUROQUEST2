@@ -8,6 +8,7 @@ import { QuestionCard } from "./question-card"
 import { GameOverScreen } from "./game-over-screen"
 import { PowerUpBar } from "./power-up-bar"
 import type { SubjectContext } from "@/app/game/[sessionId]/page"
+import { dispatchAchievementUnlocks } from "@/lib/achievements/client-events"
 
 interface GameClientProps {
   session: GameSession
@@ -57,8 +58,24 @@ export function GameClient({ session: initialSession, questions: initialQuestion
       setTimeout(() => setShakeScreen(false), 500)
     }
 
+    if (data.achievements?.length) {
+      dispatchAchievementUnlocks(data.achievements)
+    }
+
     if (data.gameStatus === "victory" || data.gameStatus === "defeat") {
       setGameStatus(data.gameStatus)
+      if (!data.achievements?.length) {
+        window.dispatchEvent(
+          new CustomEvent("questmind:mascot-message", {
+            detail: {
+              message:
+                data.gameStatus === "victory"
+                  ? "Gran victoria. Ese conocimiento ya es tuyo."
+                  : "Caer tambien da mapa. Volvemos mas fuertes.",
+            },
+          })
+        )
+      }
     }
 
     return data

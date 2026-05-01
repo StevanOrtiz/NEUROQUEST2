@@ -16,7 +16,7 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: unknown }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               // Cast to any to avoid @supabase/ssr <-> next/headers ResponseCookie type mismatch

@@ -46,9 +46,20 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
   useEffect(() => {
     async function checkSubmission() {
       try {
+        const cached = window.sessionStorage.getItem("questmind:sus-status")
+        if (cached) {
+          const data = JSON.parse(cached)
+          if (data.submitted) {
+            setSubmitted(true)
+            setFinalScore(parseFloat(data.response.sus_score))
+          }
+          return
+        }
+
         const res = await fetch("/api/sus")
         if (res.ok) {
           const data = await res.json()
+          window.sessionStorage.setItem("questmind:sus-status", JSON.stringify(data))
           if (data.submitted) {
             setSubmitted(true)
             setFinalScore(parseFloat(data.response.sus_score))
@@ -80,6 +91,10 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
       if (!res.ok) throw new Error(data.error)
       setFinalScore(parseFloat(data.sus_score))
       setSubmitted(true)
+      window.sessionStorage.setItem("questmind:sus-status", JSON.stringify({
+        submitted: true,
+        response: { sus_score: data.sus_score },
+      }))
       setCurrentStep(11)
       toast.success("¡Formulario SUS completado!")
     } catch (e: unknown) {
@@ -94,7 +109,7 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
   // ── LOCKED ────────────────────────────────────────────────────────────────
   if (!isUnlocked) {
     return (
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
         <div className="relative rounded-xl border border-border/50 bg-card overflow-hidden">
           <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,oklch(0.15_0.02_280/0.4)_10px,oklch(0.15_0.02_280/0.4)_11px)] pointer-events-none" />
           <div className="relative p-6 flex flex-col items-center text-center gap-4">
@@ -144,7 +159,7 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
     const tier = SCORE_TIERS.find((t) => (finalScore ?? 0) >= t.min) ?? SCORE_TIERS[3]
     const TierIcon = tier.icon
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
         <div className={`rounded-xl border p-6 flex flex-col sm:flex-row items-center gap-4 ${tier.bg}`}>
           <div className="w-12 h-12 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0">
             <TierIcon className={`w-6 h-6 ${tier.color}`} />
@@ -168,7 +183,7 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
     const tier = SCORE_TIERS.find((t) => finalScore >= t.min) ?? SCORE_TIERS[3]
     const TierIcon = tier.icon
     return (
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mt-8">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mt-4">
         <div className={`rounded-xl border p-8 text-center ${tier.bg}`}>
           <motion.div
             initial={{ scale: 0 }}
@@ -201,7 +216,7 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
   // ── INTRO ─────────────────────────────────────────────────────────────────
   if (currentStep === 0) {
     return (
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
         <div className="rounded-xl border border-primary/30 bg-card overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-primary via-rpg-gold to-rpg-mana" />
           <div className="p-6">
@@ -248,7 +263,7 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
   const canNext = currentAnswer !== undefined
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
       <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
         <div className="h-1 bg-secondary">
           <motion.div

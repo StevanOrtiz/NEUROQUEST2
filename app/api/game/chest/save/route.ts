@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { grantAchievement } from "@/lib/achievements/grant"
 
 // POST /api/game/chest/save
 export async function POST(req: Request) {
@@ -72,5 +73,10 @@ export async function POST(req: Request) {
     return Response.json({ error: "Error al guardar cofre", detail: insertError.message }, { status: 500 })
   }
 
-  return Response.json({ earned: true, chestId: chest.id })
+  const achievement = await grantAchievement(supabase, user.id, "first_chest", {
+    sessionId,
+    accuracy: Math.round(accuracy * 100),
+  })
+
+  return Response.json({ earned: true, chestId: chest.id, achievement })
 }

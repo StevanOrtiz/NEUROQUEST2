@@ -18,6 +18,13 @@ export function DashboardNav({ displayName, level, xp }: DashboardNavProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { progress } = getLevelProgress(xp)
+  const links = [
+    { href: "/dashboard",           label: "Inicio",    icon: Home,    tutorialId: undefined           },
+    { href: "/dashboard/inventory", label: "Inventario",icon: Package, tutorialId: "nav-inventory"    },
+    { href: "/dashboard/records",   label: "RECORDS",   icon: Trophy,  tutorialId: "nav-records"      },
+    { href: "/dashboard/profile",   label: "Perfil",    icon: User,    tutorialId: "nav-profile"      },
+    { href: "/about",               label: "About Us",  icon: Info,    tutorialId: undefined           },
+  ]
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -26,15 +33,6 @@ export function DashboardNav({ displayName, level, xp }: DashboardNavProps) {
     router.push("/")
     router.refresh()
   }
-
-  // data-tutorial values are used by the tutorial overlay to highlight these links
-  const links = [
-    { href: "/dashboard",           label: "Inicio",    icon: Home,    tutorialId: undefined           },
-    { href: "/dashboard/inventory", label: "Inventario",icon: Package, tutorialId: "nav-inventory"    },
-    { href: "/dashboard/records",   label: "RECORDS",   icon: Trophy,  tutorialId: "nav-records"      },
-    { href: "/dashboard/profile",   label: "Perfil",    icon: User,    tutorialId: "nav-profile"      },
-    { href: "/about",               label: "About Us",  icon: Info,    tutorialId: undefined           },
-  ]
 
   return (
     <header className="border-b border-border/50 bg-rpg-surface">
@@ -54,6 +52,9 @@ export function DashboardNav({ displayName, level, xp }: DashboardNavProps) {
                 <Link
                   key={link.href}
                   href={link.href}
+                  prefetch={false}
+                  onMouseEnter={() => router.prefetch(link.href)}
+                  onFocus={() => router.prefetch(link.href)}
                   {...(link.tutorialId
                     ? { "data-tutorial": link.tutorialId }
                     : {})}

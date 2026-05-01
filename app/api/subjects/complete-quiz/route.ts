@@ -3,6 +3,7 @@
 // Updates user_subject_progress and (on subject completion) grants the medal.
 
 import { createClient } from "@/lib/supabase/server"
+import { grantAchievement, type GrantedAchievement } from "@/lib/achievements/grant"
 import { getSubjectById } from "@/lib/subjects/config"
 
 export async function POST(req: Request) {
@@ -84,6 +85,7 @@ export async function POST(req: Request) {
     let diagnosticPassed = progress.diagnostic_passed
     let subjectCompleted = progress.subject_completed
     let medalGranted = false
+    const achievements: GrantedAchievement[] = []
 
     // ── DIAGNOSTIC TEST ───────────────────────────────────
     if (link.quiz_type === "diagnostic" && passed && !diagnosticPassed) {
@@ -121,6 +123,11 @@ export async function POST(req: Request) {
           )
           if (allSectionsComplete && !completedModules.includes(moduleId)) {
             completedModules.push(moduleId)
+            const moduleAchievement = await grantAchievement(supabase, user.id, "first_module_completed", {
+              subjectId: subject.id,
+              moduleId,
+            })
+            if (moduleAchievement) achievements.push(moduleAchievement)
 
             // Unlock next module
             const moduleIndex = subject.modules.findIndex((m) => m.id === moduleId)
@@ -143,6 +150,10 @@ export async function POST(req: Request) {
                 subjectCompleted = true
                 // Grant medal via inventory
                 medalGranted = await grantMedal(supabase, user.id, subject.id, subject.title, subject.medalIcon)
+                const subjectAchievement = await grantAchievement(supabase, user.id, "first_subject_completed", {
+                  subjectId: subject.id,
+                })
+                if (subjectAchievement) achievements.push(subjectAchievement)
               }
             }
           }
@@ -174,6 +185,7 @@ export async function POST(req: Request) {
       unlockedSections,
       completedSections,
       completedModules,
+      achievements,
     })
   } catch (err) {
     console.error("complete-quiz error:", err)

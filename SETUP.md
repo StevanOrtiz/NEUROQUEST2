@@ -1,153 +1,144 @@
-# QuestMind — Local Setup Guide
+# QuestMind - Local Setup Guide
 
-## What was fixed
-- ✅ Replaced OpenAI/GPT-4o with **Claude** (claude-opus-4-5 via `@ai-sdk/anthropic`)
-- ✅ All SQL scripts completely rewritten to match the actual code (columns, types, constraints)
-- ✅ Added `profiles` auto-creation trigger on user sign-up
-- ✅ Added missing RLS policies for `profiles`
-- ✅ Fixed `getLevelProgress()` — the early `break` was skipping levels for high XP values
-- ✅ Fixed the level calculation in `answer/route.ts` (same bug)
-- ✅ Fixed accuracy stat calculation in dashboard
-- ✅ Fixed `skip_question` power-up — now correctly updates `current_question_index` in the session and marks the question as answered in client state
-- ✅ Implemented `double_xp` power-up (was silently doing nothing)
-- ✅ Fixed `chest/route.ts` — added missing `icon` field to inventory insert
-- ✅ Added fallback for empty chest reward pool
-- ✅ Added input validation to answer and use-item routes
-- ✅ Replaced SQL `004_chests_and_peadadarks.sql` with `004_inventory.sql` matching `inventory_items` table
-dadadad
----
+## What This Project Uses
+
+- Next.js with the App Router
+- Supabase Auth and Postgres
+- Anthropic Claude for PDF-based question generation
+- npm as the package manager
 
 ## Prerequisites
 
-- **Node.js** 20+ (install from https://nodejs.org or use `nvm`)
-- **pnpm** — `npm install -g pnpm`
-- A free **Supabase** account (https://supabase.com)
-- An **Anthropic API key** (https://console.anthropic.com)
+- Node.js 20+
+- npm 10+
+- A Supabase project
+- An Anthropic API key
 
----
-
-## Step 1 — Clone & Install
+## Step 1 - Install
 
 ```bash
-# Copy the project folder to wherever you want it, then:
 cd questmind
-pnpm install
+npm install
 ```
 
----
+## Step 2 - Create a Supabase Project
 
-## Step 2 — Create a Supabase Project
+1. Go to https://supabase.com and sign in.
+2. Create a new project.
+3. In Settings > API, copy:
+   - Project URL to `NEXT_PUBLIC_SUPABASE_URL`
+   - anon/public key to `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-1. Go to https://supabase.com and sign in
-2. Click **New project**, fill in a name, password, and choose a region
-3. Wait ~1 minute for it to provision
-4. Go to **Settings → API** and copy:
-   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon / public key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+## Step 3 - Run Database Migrations
 
----
+In Supabase SQL Editor, run the scripts in order:
 
-## Step 3 — Run the Database Migrations
+1. `scripts/001_profiles.sql`
+2. `scripts/002_game_sessions.sql`
+3. `scripts/003_questions.sql`
+4. `scripts/004_inventory.sql`
+5. `scripts/005_chests.sql`
+6. `scripts/006_subjects.sql`
+7. `scripts/007_streak.sql`
+8. `scripts/008_records_leaderboards.sql`
+9. `scripts/009_sus_form.sql`
+10. `scripts/010_tutorial.sql`
+11. `scripts/011_ai_cost_optimization_prompt_cache.sql`
+12. `scripts/012_adhd_screening_results.sql`
+13. `scripts/013_user_usage_reports.sql`
+14. `scripts/014_user_achievements.sql`
+15. `scripts/015_personal_chest_tasks.sql`
 
-In the Supabase dashboard, go to **SQL Editor** and run each script in order:
+Run them in order because later scripts reference earlier tables.
 
-1. Paste and run `scripts/001_profiles.sql`
-2. Paste and run `scripts/002_game_sessions.sql`
-3. Paste and run `scripts/003_questions.sql`
-4. Paste and run `scripts/004_inventory.sql`
+## Step 4 - Environment Variables
 
-> ⚠️ Run them **in order** — later scripts reference tables from earlier ones.
-
-### Enable Email Auth (if not already enabled)
-Go to **Authentication → Providers → Email** and make sure it's enabled.
-
-### (Optional) Disable Email Confirmation for local dev
-Go to **Authentication → Settings** → turn off **"Confirm email"** so you can log in instantly without checking your email.
-
----
-
-## Step 4 — Configure Environment Variables
-
-Copy the example file:
-```bash
-cp .env.local.example .env.local
-```
-
-Then edit `.env.local` and fill in your values:
+Create `.env.local` and fill in your own values:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
-ANTHROPIC_API_KEY=sk-ant-api03-...
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-haiku-4-5
+ANTHROPIC_MAX_INPUT_CHARS=35000
+ANTHROPIC_MAX_OUTPUT_TOKENS=2800
+ANTHROPIC_PROMPT_CACHE=true
+ANTHROPIC_CACHE_TTL=5m
+AI_REUSE_GENERATED_QUESTIONS=true
+ANTHROPIC_ALLOW_DIRECT_PDF_FALLBACK=false
 ```
 
-**Where to get the Anthropic key:**
-1. Go to https://console.anthropic.com/settings/keys
-2. Click **Create Key**, copy it
-3. Paste it as `ANTHROPIC_API_KEY`
+Do not commit real API keys. If a real key was ever committed or shared, revoke it and create a new one.
 
----
-
-## Step 5 — Run the Dev Server
+## Step 5 - Run the Dev Server
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 Open http://localhost:3000 in your browser.
 
----
+## Vercel Settings
 
-## Step 6 — Create an Account & Test
+Use npm commands in Vercel:
 
-1. Go to http://localhost:3000 and click **Registrarse**
-2. Fill in your name, email, and password → submit
-3. If email confirmation is disabled, you can log in immediately
-4. On the dashboard, drag a PDF file onto the upload card
-5. Choose a difficulty and click **Iniciar Batalla**
-6. Wait ~10–15 seconds for Claude to generate the questions
-7. Play through the quiz!
+- Install Command: `npm install`
+- Build Command: `npm run build`
+- Development Command: `npm run dev`
 
----
+Add the same environment variables listed above in Project Settings > Environment Variables.
+
+## PDF AI Cost Controls
+
+The app extracts selectable text locally with `pdf-parse` before calling Claude. It no longer sends the complete PDF as base64 by default.
+
+Cost controls:
+
+- `ANTHROPIC_MAX_INPUT_CHARS` limits the text sent to Claude.
+- Long PDFs are sampled from the beginning, middle, and end instead of using only the first pages.
+- `ANTHROPIC_MODEL` defaults to `claude-haiku-4-5`.
+- `ANTHROPIC_MAX_OUTPUT_TOKENS` defaults to `2800`.
+- Prompt caching is requested on the stable PDF text block when the cacheable prefix is large enough for the selected model.
+- Repeated uploads with the same user, PDF hash, difficulty, and enough existing questions reuse saved questions without calling Claude.
+- Scanned PDFs are rejected by default with a clear error. Set `ANTHROPIC_ALLOW_DIRECT_PDF_FALLBACK=true` only if you explicitly accept the higher direct-PDF cost.
+
+## Test Flow
+
+1. Run `npm install`.
+2. Run `npm run dev`.
+3. Upload a selectable-text PDF for the first time.
+4. Upload the same PDF with another difficulty within 5 minutes and check `ai_cache_read_input_tokens`.
+5. Upload the same PDF with the same difficulty and check that `ai_source_mode = 'reused'` and no Claude call is needed.
+
+## Project Structure
+
+```text
+app/
+  api/game/create/     PDF upload, text extraction, Claude call, reuse, Supabase writes
+  api/game/answer/     Validates answers, updates XP/lives/status
+  dashboard/           Main hub and PDF upload UI
+  game/[sessionId]/    Quiz gameplay
+
+components/
+  dashboard/pdf-upload-card.tsx
+  game/
+
+lib/
+  ai/                  PDF text extraction, prompt caching, Claude question generation
+  supabase/            Supabase client helpers
+  types.ts             Shared app types
+
+scripts/
+  001_*.sql through 015_*.sql
+```
 
 ## Common Errors
 
 | Error | Fix |
-|-------|-----|
-| `relation "game_sessions" does not exist` | Run the SQL scripts in Supabase SQL Editor |
-| `No autenticado` on API calls | Make sure you're logged in and the Supabase env vars are correct |
-| `ANTHROPIC_API_KEY is not set` | Check your `.env.local` file — restart `pnpm dev` after editing |
-| `Error al procesar el PDF` | Make sure the PDF has readable text (not a scanned image). Also check the Anthropic API key |
-| Sign-up redirects to error page | In Supabase → Authentication → Settings, set Site URL to `http://localhost:3000` |
-| Profile doesn't appear after sign-up | Make sure you ran `001_profiles.sql` which includes the auto-create trigger |
-
----
-
-## Project Structure
-
-```
-app/
-  api/game/
-    create/     ← Uploads PDF, calls Claude, saves questions
-    answer/     ← Validates answers, updates XP/lives/status
-    chest/      ← Opens reward chest after victory
-    use-item/   ← Applies power-up effects
-  auth/         ← Login, sign-up pages
-  dashboard/    ← Main hub, inventory, profile
-  game/[id]/    ← The actual quiz gameplay
-
-components/
-  game/         ← GameClient, QuestionCard, HUD, PowerUpBar, GameOver
-  dashboard/    ← DashboardContent, PdfUploadCard, StatsCard, Nav
-
-lib/
-  types.ts      ← All TypeScript types + DIFFICULTY_CONFIG + getLevelProgress
-  supabase/     ← Supabase client helpers
-
-scripts/
-  001_profiles.sql
-  002_game_sessions.sql
-  003_questions.sql
-  004_inventory.sql
-```
+| --- | --- |
+| `relation "game_sessions" does not exist` | Run the SQL scripts in order in Supabase SQL Editor. |
+| `No autenticado` | Log in and verify Supabase environment variables. |
+| `ANTHROPIC_API_KEY is not set` | Add the key to environment variables and restart `npm run dev`. |
+| `El PDF no tiene suficiente texto seleccionable` | Use a PDF with selectable text or OCR it before upload. |
+| Sign-up redirects to error page | In Supabase Auth settings, set Site URL to `http://localhost:3000`. |

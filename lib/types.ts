@@ -30,6 +30,16 @@ export interface GameSession {
   current_question_index: number
   created_at: string
   finished_at: string | null
+  source_hash?: string | null
+  ai_model?: string | null
+  ai_input_chars?: number | null
+  ai_estimated_input_tokens?: number | null
+  ai_uncached_input_tokens?: number | null
+  ai_output_tokens?: number | null
+  ai_cache_creation_input_tokens?: number | null
+  ai_cache_read_input_tokens?: number | null
+  ai_cache_status?: "disabled" | "requested_5m" | "requested_1h" | "skipped_below_minimum"
+  ai_source_mode?: "unknown" | "text_extraction_cached_prompt" | "direct_pdf_fallback" | "reused"
 }
 
 export interface Question {

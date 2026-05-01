@@ -111,6 +111,10 @@ export default function SignUpPage() {
           <Link href="/" className="hover:text-foreground transition-colors">
             Volver al inicio
           </Link>
+          <span className="mx-2">·</span>
+          <Link href="/about" className="hover:text-foreground transition-colors">
+            About Us
+          </Link>
         </p>
       </div>
     </main>

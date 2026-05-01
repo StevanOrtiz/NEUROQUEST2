@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getTodayUtc } from "@/lib/streak/streak-utils"
 import { updateUserStreak } from "@/lib/streak/update-streak"
+import { ensureUsageReport } from "@/lib/research/usage-reports"
 
 export async function POST() {
   const supabase = await createClient()
@@ -16,6 +17,17 @@ export async function POST() {
 
   if (!result) {
     return Response.json({ error: "Error al actualizar racha" }, { status: 500 })
+  }
+
+  if (result.current_streak >= 3) {
+    void ensureUsageReport({
+      supabase,
+      userId: user.id,
+      reportType: "day3",
+      streakDay: result.current_streak,
+    }).catch((error) => {
+      console.error("[streak/update] day3 report background error:", error)
+    })
   }
 
   return Response.json({

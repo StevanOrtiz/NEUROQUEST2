@@ -2,15 +2,32 @@
 
 import { motion } from "framer-motion"
 import { Profile, GameSession, getLevelProgress, LEVEL_THRESHOLDS, DIFFICULTY_CONFIG } from "@/lib/types"
-import { User, Star, Trophy, Heart, Swords, TrendingUp, Clock } from "lucide-react"
+import { Award, User, Star, Trophy, Heart, Swords, TrendingUp, Clock } from "lucide-react"
+
+interface Achievement {
+  code: string
+  title: string
+  description: string
+  icon: string
+  rarity: "common" | "rare" | "epic" | "legendary" | string
+  earned_at: string
+}
 
 interface ProfileContentProps {
   profile: Profile | null
   sessions: GameSession[]
+  achievements: Achievement[]
   email: string
 }
 
-export function ProfileContent({ profile, sessions, email }: ProfileContentProps) {
+const rarityClass: Record<string, string> = {
+  common: "border-primary/25 bg-primary/10 text-primary",
+  rare: "border-rpg-mana/30 bg-rpg-mana/10 text-rpg-mana",
+  epic: "border-rpg-legendary/35 bg-rpg-legendary/10 text-rpg-legendary",
+  legendary: "border-rpg-gold/40 bg-rpg-gold/10 text-rpg-gold",
+}
+
+export function ProfileContent({ profile, sessions, achievements, email }: ProfileContentProps) {
   const p = profile ?? {
     display_name: "Aventurero",
     level: 1,
@@ -76,6 +93,52 @@ export function ProfileContent({ profile, sessions, email }: ProfileContentProps
             Nv. {p.level + 1} ({nextLevelXp} XP)
           </span>
         </div>
+      </motion.div>
+
+      {/* Achievement medals */}
+      <motion.div
+        className="mb-8 rounded-xl border border-border/50 bg-card p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.15 }}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Medallas</h2>
+            <p className="text-xs text-muted-foreground">Logros desbloqueados en tus aventuras</p>
+          </div>
+          <Award className="h-5 w-5 text-rpg-gold" />
+        </div>
+
+        {achievements.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {achievements.map((achievement, index) => (
+              <motion.div
+                key={achievement.code}
+                className={`rounded-lg border p-3 ${rarityClass[achievement.rarity] ?? rarityClass.common}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.18 + index * 0.04 }}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-current/25 bg-background/35 font-mono text-sm font-bold">
+                    {achievement.icon}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground">{achievement.title}</span>
+                    <span className="block text-xs leading-relaxed text-muted-foreground">
+                      {achievement.description}
+                    </span>
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border/60 bg-background/25 p-4 text-sm text-muted-foreground">
+            Aun no hay medallas. Completa una partida, usa Pomodoro o conquista una materia.
+          </div>
+        )}
       </motion.div>
 
       {/* Stats grid */}

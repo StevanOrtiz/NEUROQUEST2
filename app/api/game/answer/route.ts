@@ -1,45 +1,13 @@
-/**
- * app/api/game/answer/route.ts — ADD THIS CODE
- *
- * ⚠️  DO NOT replace the original file entirely without reviewing the diff below.
- *
- * This file shows the MINIMAL DIFF to apply to the existing
- * app/api/game/answer/route.ts to trigger a streak update
- * when a game session finishes (victory OR defeat).
- *
- * ─── WHAT TO ADD ─────────────────────────────────────────────────
- *
- * 1. Add import at the top (after existing imports):
- *
- *     import { updateUserStreak } from "@/lib/streak/update-streak"
- *
- * 2. Inside the `if (isFinished)` block, after the profile update,
- *    add the streak call:
- *
- *     if (isFinished) {
- *       // ... existing profile update code ...
- *
- *       // ── Update daily streak (NEW) ──────────────────────────
- *       await updateUserStreak(user.id)
- *     }
- *
- * 3. Add the streak result to the return object:
- *
- *     return Response.json({
- *       // ... existing fields ...
- *       streakUpdated: isFinished,   // ← NEW: tells client a streak update occurred
- *     })
- *
- * ─── FULL PATCHED FILE ───────────────────────────────────────────
- */
-
+import { grantAchievements, type GrantedAchievement } from "@/lib/achievements/grant"
+import { updateUserStreak } from "@/lib/streak/update-streak"
 import { createClient } from "@/lib/supabase/server"
 import { DIFFICULTY_CONFIG, LEVEL_THRESHOLDS } from "@/lib/types"
-import { updateUserStreak } from "@/lib/streak/update-streak"       // ← NEW
 
 export async function POST(req: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return Response.json({ error: "No autenticado" }, { status: 401 })
@@ -88,10 +56,14 @@ export async function POST(req: Request) {
     return Response.json({ error: "Sesion no encontrada" }, { status: 404 })
   }
 
-  const config = DIFFICULTY_CONFIG[session.difficulty as keyof typeof DIFFICULTY_CONFIG] ?? DIFFICULTY_CONFIG.normal
+  const config =
+    DIFFICULTY_CONFIG[session.difficulty as keyof typeof DIFFICULTY_CONFIG] ??
+    DIFFICULTY_CONFIG.normal
 
   const doubleXpActive = (session as Record<string, unknown>).double_xp_active === true
-  const baseXp = isCorrect ? Math.round(25 * config.xpMultiplier * (doubleXpActive ? 2 : 1)) : 0
+  const baseXp = isCorrect
+    ? Math.round(25 * config.xpMultiplier * (doubleXpActive ? 2 : 1))
+    : 0
 
   const newCorrect = session.correct_answers + (isCorrect ? 1 : 0)
   const newWrong = session.wrong_answers + (isCorrect ? 0 : 1)
@@ -107,6 +79,7 @@ export async function POST(req: Request) {
   }
 
   const isFinished = newStatus === "victory" || newStatus === "defeat"
+  const accuracy = session.total_questions > 0 ? (newCorrect / session.total_questions) * 100 : 0
 
   await supabase
     .from("game_sessions")
@@ -122,6 +95,8 @@ export async function POST(req: Request) {
     } as never)
     .eq("id", session.id)
 
+  let grantedAchievements: GrantedAchievement[] = []
+
   if (isFinished) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -129,12 +104,15 @@ export async function POST(req: Request) {
       .eq("id", user.id)
       .single()
 
+    const oldLevel = profile?.level ?? 1
+    let newLevel = oldLevel
+
     if (profile) {
       const updatedXp = profile.xp + newXp
       const updatedGames = profile.total_games + 1
       const updatedCorrect = profile.total_correct + newCorrect
 
-      let newLevel = 1
+      newLevel = 1
       for (let i = 1; i < LEVEL_THRESHOLDS.length; i++) {
         if (updatedXp >= LEVEL_THRESHOLDS[i]) newLevel = i + 1
       }
@@ -150,11 +128,27 @@ export async function POST(req: Request) {
         .eq("id", user.id)
     }
 
-    // ── Update daily streak ─────────────────────────────── NEW ──
-    // We fire this after the profile update so the streak function
-    // reads the freshest profile row. Errors are intentionally swallowed
-    // so a streak failure never blocks the game result response.
-    await updateUserStreak(user.id)
+    const streakResult = await updateUserStreak(user.id)
+
+    const { data: subjectLink } = await supabase
+      .from("subject_game_sessions")
+      .select("id")
+      .eq("session_id", session.id)
+      .maybeSingle()
+
+    grantedAchievements = await grantAchievements(supabase, user.id, [
+      ...(newStatus === "victory" ? [{ code: "first_victory" as const }] : []),
+      ...(!subjectLink ? [{ code: "first_pdf_completed" as const }] : []),
+      ...(accuracy >= 80
+        ? [{ code: "pdf_accuracy_80" as const, metadata: { accuracy: Math.round(accuracy) } }]
+        : []),
+      ...((streakResult?.current_streak ?? 0) >= 3
+        ? [{ code: "first_streak_3" as const, metadata: { streak: streakResult?.current_streak } }]
+        : []),
+      ...(oldLevel < 3 && newLevel >= 3
+        ? [{ code: "level_3" as const, metadata: { level: newLevel } }]
+        : []),
+    ])
   }
 
   return Response.json({
@@ -167,6 +161,7 @@ export async function POST(req: Request) {
     totalXpEarned: newXp,
     correctAnswers: newCorrect,
     totalQuestions: session.total_questions,
-    streakUpdated: isFinished,   // ← NEW: client can trigger a streak UI refresh
+    achievements: grantedAchievements,
+    streakUpdated: isFinished,
   })
 }

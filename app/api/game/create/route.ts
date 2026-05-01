@@ -1,17 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
-import Anthropic from "@anthropic-ai/sdk"
 import { DIFFICULTY_CONFIG } from "@/lib/types"
+import { extractPdfTextForClaude, getPdfHash } from "@/lib/ai/pdf-text"
+import { generateQuestionsWithClaude, type GeneratedQuestion } from "@/lib/ai/question-generation"
 
-// Use the official Anthropic SDK directly — no AI SDK version conflicts
-const anthropicClient = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+type Difficulty = keyof typeof DIFFICULTY_CONFIG
 
-interface GeneratedQuestion {
-  question_text: string
-  options: string[]
-  correct_option: number
-  explanation: string
+function envFlag(name: string, defaultValue: boolean) {
+  const value = process.env[name]
+  if (value == null || value === "") return defaultValue
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase())
 }
 
 export async function POST(req: Request) {
@@ -25,147 +22,262 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData()
     const pdfFile = formData.get("pdf") as File | null
-    const difficulty = (formData.get("difficulty") as string) || "normal"
+    const difficulty = ((formData.get("difficulty") as string) || "normal") as Difficulty
 
     if (!pdfFile) {
       return Response.json({ error: "No se envio el PDF" }, { status: 400 })
     }
 
-    const validDifficulty = difficulty as keyof typeof DIFFICULTY_CONFIG
-    const config = DIFFICULTY_CONFIG[validDifficulty] || DIFFICULTY_CONFIG.normal
+    const validDifficulty: Difficulty = DIFFICULTY_CONFIG[difficulty] ? difficulty : "normal"
+    const config = DIFFICULTY_CONFIG[validDifficulty]
     const numQuestions = config.questions
+    const pdfBuffer = Buffer.from(await pdfFile.arrayBuffer())
+    const sourceHash = getPdfHash(pdfBuffer)
+    const pdfName = pdfFile.name.replace(/\.pdf$/i, "")
 
-    // Extract PDF as base64
-    const pdfBuffer = await pdfFile.arrayBuffer()
-    const pdfBase64 = Buffer.from(pdfBuffer).toString("base64")
+    if (envFlag("AI_REUSE_GENERATED_QUESTIONS", true)) {
+      const reused = await tryCreateSessionFromExistingQuestions({
+        supabase,
+        userId: user.id,
+        sourceHash,
+        difficulty: validDifficulty,
+        numQuestions,
+        pdfName,
+      })
 
-    // Generate questions using the official Anthropic SDK
-    const response = await anthropicClient.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 8192,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: pdfBase64,
-              },
-            },
-            {
-              type: "text",
-              text: `Eres un experto creando preguntas de examen. Analiza el documento PDF adjunto y genera exactamente ${numQuestions} preguntas de opcion multiple en espanol.
-
-Responde UNICAMENTE con un objeto JSON valido con esta estructura exacta, sin texto adicional, sin markdown, sin bloques de codigo:
-{
-  "questions": [
-    {
-      "question_text": "Texto de la pregunta",
-      "options": ["Opcion A", "Opcion B", "Opcion C", "Opcion D"],
-      "correct_option": 0,
-      "explanation": "Explicacion breve de por que esta respuesta es correcta"
+      if (reused) {
+        return Response.json({
+          sessionId: reused.sessionId,
+          reused: true,
+          sourceMode: "reused",
+          estimatedInputTokens: 0,
+          truncated: false,
+          cacheStatus: "disabled",
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+        })
+      }
     }
-  ]
-}
 
-Reglas:
-- Genera exactamente ${numQuestions} preguntas
-- Cada pregunta tiene exactamente 4 opciones (indices 0, 1, 2, 3)
-- correct_option es el indice (0-3) de la opcion correcta
-- Dificultad: ${config.label}
-- Las preguntas deben cubrir los conceptos clave del documento
-- Las opciones incorrectas deben ser plausibles
-- Varia el tipo: conceptuales, aplicacion, analisis`,
-            },
-          ],
-        },
-      ],
+    const allowDirectPdfFallback = envFlag("ANTHROPIC_ALLOW_DIRECT_PDF_FALLBACK", false)
+    let sourceMode: "text_extraction_cached_prompt" | "direct_pdf_fallback" = "text_extraction_cached_prompt"
+    let inputText = ""
+    let inputChars = 0
+    let estimatedInputTokens = 0
+    let truncated = false
+
+    try {
+      const pdfText = await extractPdfTextForClaude(pdfBuffer)
+      inputText = pdfText.inputText
+      inputChars = pdfText.inputChars
+      estimatedInputTokens = pdfText.estimatedInputTokens
+      truncated = pdfText.truncated
+    } catch (error) {
+      if (!allowDirectPdfFallback) {
+        const message = error instanceof Error ? error.message : "No se pudo extraer texto seleccionable del PDF."
+        return Response.json({ error: message }, { status: 400 })
+      }
+
+      sourceMode = "direct_pdf_fallback"
+      inputText = "PDF enviado directamente a Claude por fallback explicito."
+      inputChars = pdfBuffer.byteLength
+      estimatedInputTokens = Math.ceil(inputChars / 4)
+      truncated = false
+    }
+
+    const generated = await generateQuestionsWithClaude({
+      pdfName,
+      pdfText: inputText,
+      difficultyLabel: config.label,
+      numQuestions,
+      pdfBuffer: sourceMode === "direct_pdf_fallback" ? pdfBuffer : undefined,
+      directPdfFallback: sourceMode === "direct_pdf_fallback",
     })
 
-    // Parse the JSON response
-    const content = response.content[0]
-    if (content.type !== "text") {
-      return Response.json({ error: "Respuesta inesperada del modelo" }, { status: 500 })
-    }
+    const session = await createSession({
+      supabase,
+      userId: user.id,
+      pdfName,
+      difficulty: validDifficulty,
+      questions: generated.questions,
+      sourceHash,
+      aiModel: generated.model,
+      aiInputChars: inputChars,
+      aiEstimatedInputTokens: estimatedInputTokens,
+      aiUncachedInputTokens: generated.usage.uncachedInputTokens,
+      aiOutputTokens: generated.usage.outputTokens,
+      aiCacheCreationInputTokens: generated.usage.cacheCreationInputTokens,
+      aiCacheReadInputTokens: generated.usage.cacheReadInputTokens,
+      aiCacheStatus: generated.cacheStatus,
+      aiSourceMode: generated.sourceMode,
+    })
 
-    let parsed: { questions: GeneratedQuestion[] }
-    try {
-      // Strip any accidental markdown fences
-      const cleaned = content.text.replace(/```json\n?|\n?```/g, "").trim()
-      parsed = JSON.parse(cleaned)
-    } catch {
-      console.error("JSON parse error, raw response:", content.text.substring(0, 500))
-      return Response.json({ error: "Error al parsear las preguntas generadas" }, { status: 500 })
-    }
-
-    if (!parsed.questions || parsed.questions.length === 0) {
-      return Response.json({ error: "No se pudieron generar preguntas" }, { status: 500 })
-    }
-
-    // Validate each question
-    const questions = parsed.questions.filter(
-      (q) =>
-        q.question_text &&
-        Array.isArray(q.options) &&
-        q.options.length === 4 &&
-        typeof q.correct_option === "number" &&
-        q.correct_option >= 0 &&
-        q.correct_option <= 3
+    return Response.json({
+      sessionId: session.id,
+      reused: false,
+      sourceMode,
+      estimatedInputTokens,
+      truncated,
+      cacheStatus: generated.cacheStatus,
+      cacheReadInputTokens: generated.usage.cacheReadInputTokens,
+      cacheCreationInputTokens: generated.usage.cacheCreationInputTokens,
+    })
+  } catch (err) {
+    console.error("Game create error:", err instanceof Error ? err.message : err)
+    return Response.json(
+      { error: err instanceof Error ? err.message : "Error al procesar el PDF" },
+      { status: 500 }
     )
+  }
+}
 
-    if (questions.length === 0) {
-      return Response.json({ error: "Las preguntas generadas no son validas" }, { status: 500 })
+async function tryCreateSessionFromExistingQuestions(input: {
+  supabase: any
+  userId: string
+  sourceHash: string
+  difficulty: Difficulty
+  numQuestions: number
+  pdfName: string
+}) {
+  const { data: sessions, error } = await input.supabase
+    .from("game_sessions")
+    .select("id, total_questions")
+    .eq("user_id", input.userId)
+    .eq("source_hash", input.sourceHash)
+    .eq("difficulty", input.difficulty)
+    .gte("total_questions", input.numQuestions)
+    .order("created_at", { ascending: false })
+    .limit(5)
+
+  if (error || !sessions?.length) return null
+
+  for (const sourceSession of sessions) {
+    const { data: existingQuestions, error: questionsError } = await input.supabase
+      .from("questions")
+      .select("question_text, options, correct_option, explanation, difficulty, question_index")
+      .eq("session_id", sourceSession.id)
+      .eq("user_id", input.userId)
+      .order("question_index", { ascending: true })
+      .limit(input.numQuestions)
+
+    if (questionsError || !existingQuestions || existingQuestions.length < input.numQuestions) {
+      continue
     }
 
-    // Create game session
-    const { data: session, error: sessionError } = await supabase
+    const { data: session, error: sessionError } = await input.supabase
       .from("game_sessions")
       .insert({
-        user_id: user.id,
-        pdf_name: pdfFile.name.replace(".pdf", ""),
-        difficulty: validDifficulty,
-        total_questions: questions.length,
+        user_id: input.userId,
+        pdf_name: input.pdfName,
+        difficulty: input.difficulty,
+        total_questions: input.numQuestions,
         lives_remaining: 3,
         status: "in_progress",
+        source_hash: input.sourceHash,
+        ai_model: "reused",
+        ai_input_chars: 0,
+        ai_estimated_input_tokens: 0,
+        ai_uncached_input_tokens: 0,
+        ai_output_tokens: 0,
+        ai_cache_creation_input_tokens: 0,
+        ai_cache_read_input_tokens: 0,
+        ai_cache_status: "disabled",
+        ai_source_mode: "reused",
       })
       .select("id")
       .single()
 
     if (sessionError || !session) {
-      console.error("Session error:", sessionError)
-      return Response.json({ error: "Error al crear la sesion" }, { status: 500 })
+      console.error("Session reuse error:", sessionError)
+      return null
     }
 
-    // Insert questions
-    const questionsToInsert = questions.map((q, index) => ({
+    const questionsToInsert = existingQuestions.map((q: any, index: number) => ({
       session_id: session.id,
-      user_id: user.id,
+      user_id: input.userId,
       question_text: q.question_text,
       options: q.options,
       correct_option: q.correct_option,
       explanation: q.explanation || "",
-      difficulty: validDifficulty,
+      difficulty: input.difficulty,
       question_index: index,
     }))
 
-    const { error: questionsError } = await supabase
-      .from("questions")
-      .insert(questionsToInsert)
+    const { error: insertError } = await input.supabase.from("questions").insert(questionsToInsert)
 
-    if (questionsError) {
-      console.error("Questions error:", questionsError)
-      return Response.json({ error: "Error al guardar preguntas" }, { status: 500 })
+    if (insertError) {
+      console.error("Question reuse error:", insertError)
+      return null
     }
 
-    return Response.json({ sessionId: session.id })
-  } catch (err) {
-    console.error("Game create error:", err)
-    return Response.json(
-      { error: "Error al procesar el PDF" },
-      { status: 500 }
-    )
+    return { sessionId: session.id }
   }
+
+  return null
+}
+
+async function createSession(input: {
+  supabase: any
+  userId: string
+  pdfName: string
+  difficulty: Difficulty
+  questions: GeneratedQuestion[]
+  sourceHash: string
+  aiModel: string
+  aiInputChars: number
+  aiEstimatedInputTokens: number
+  aiUncachedInputTokens: number
+  aiOutputTokens: number
+  aiCacheCreationInputTokens: number
+  aiCacheReadInputTokens: number
+  aiCacheStatus: string
+  aiSourceMode: string
+}) {
+  const { data: session, error: sessionError } = await input.supabase
+    .from("game_sessions")
+    .insert({
+      user_id: input.userId,
+      pdf_name: input.pdfName,
+      difficulty: input.difficulty,
+      total_questions: input.questions.length,
+      lives_remaining: 3,
+      status: "in_progress",
+      source_hash: input.sourceHash,
+      ai_model: input.aiModel,
+      ai_input_chars: input.aiInputChars,
+      ai_estimated_input_tokens: input.aiEstimatedInputTokens,
+      ai_uncached_input_tokens: input.aiUncachedInputTokens,
+      ai_output_tokens: input.aiOutputTokens,
+      ai_cache_creation_input_tokens: input.aiCacheCreationInputTokens,
+      ai_cache_read_input_tokens: input.aiCacheReadInputTokens,
+      ai_cache_status: input.aiCacheStatus,
+      ai_source_mode: input.aiSourceMode,
+    })
+    .select("id")
+    .single()
+
+  if (sessionError || !session) {
+    console.error("Session error:", sessionError)
+    throw new Error("Error al crear la sesion")
+  }
+
+  const questionsToInsert = input.questions.map((q, index) => ({
+    session_id: session.id,
+    user_id: input.userId,
+    question_text: q.question_text,
+    options: q.options,
+    correct_option: q.correct_option,
+    explanation: q.explanation || "",
+    difficulty: input.difficulty,
+    question_index: index,
+  }))
+
+  const { error: questionsError } = await input.supabase.from("questions").insert(questionsToInsert)
+
+  if (questionsError) {
+    console.error("Questions error:", questionsError)
+    throw new Error("Error al guardar preguntas")
+  }
+
+  return session
 }

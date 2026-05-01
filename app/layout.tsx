@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
-import { PomodoroTimer } from '@/components/pomodoro/pomodoro-timer'
+import { ProtectedExperienceLayer } from '@/components/shell/protected-experience-layer'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -36,9 +36,9 @@ export default function RootLayout({
     <html lang="es" className="dark">
       <body className="font-sans antialiased">
         {children}
-        <PomodoroTimer />
+        <ProtectedExperienceLayer />
         <Toaster theme="dark" richColors position="top-center" />
-        <Analytics />
+        {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>
   )
