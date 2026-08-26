@@ -1,5 +1,6 @@
 import { Swords, GraduationCap, Code2 } from "lucide-react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
 
 const team = [
   {
@@ -31,7 +32,12 @@ Participó en este proyecto universitario para desarrollar una herramienta para 
   },
 ]
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   return (
     <main className="min-h-screen flex flex-col">
       {/* ── Header ── */}
@@ -43,24 +49,29 @@ export default function AboutPage() {
           <span className="font-bold text-lg text-foreground">QuestMind</span>
         </Link>
         <nav className="flex items-center gap-2">
-          <Link
-            href="/auth/login"
-            className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            Iniciar sesion
-          </Link>
-          <Link
-            href="/auth/sign-up"
-            className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            Registrarse
-          </Link>
-          <Link
-            href="/dashboard"
-            className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            Ir al dashboard
-          </Link>
+          {user ? (
+            <Link
+              href="/dashboard"
+              className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Ir al dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/auth/login"
+                className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Iniciar sesion
+              </Link>
+              <Link
+                href="/auth/sign-up"
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-primary-foreground bg-primary transition-opacity hover:opacity-90"
+              >
+                Registrarse
+              </Link>
+            </>
+          )}
         </nav>
       </header>
 

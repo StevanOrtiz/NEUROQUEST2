@@ -85,16 +85,24 @@ export function AchievementUnlockOverlay() {
   }, [active, prefersReducedMotion])
 
   const style = active ? rarityStyles[active.rarity ?? "common"] ?? fallbackStyle : fallbackStyle
+  const skip = () => setActive(null)
 
   return (
     <AnimatePresence>
       {active && (
         <motion.div
-          className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center overflow-hidden bg-background/35 px-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[90] flex cursor-pointer items-center justify-center overflow-hidden bg-background/35 px-4 backdrop-blur-[2px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
+          onClick={skip}
+          role="button"
+          tabIndex={0}
+          aria-label="Cerrar y ver el siguiente logro"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") skip()
+          }}
           aria-live="polite"
         >
           {!prefersReducedMotion && (
@@ -197,6 +205,17 @@ export function AchievementUnlockOverlay() {
                 +Medalla
               </span>
             </motion.div>
+
+            <motion.p
+              className="relative mt-5 text-xs text-muted-foreground"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.55 }}
+            >
+              {queue.length > 0
+                ? `Toca en cualquier lugar para continuar · ${queue.length} logro${queue.length === 1 ? "" : "s"} mas en cola`
+                : "Toca en cualquier lugar para continuar"}
+            </motion.p>
           </motion.section>
         </motion.div>
       )}

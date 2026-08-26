@@ -41,7 +41,7 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
   const [finalScore, setFinalScore] = useState<number | null>(null)
   const [checking, setChecking] = useState(true)
 
-  const isUnlocked = currentStreak >= 3 && level >= 3
+  const isUnlocked = currentStreak >= 1 && level >= 1
 
   useEffect(() => {
     async function checkSubmission() {
@@ -127,26 +127,26 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
             </div>
             <div className="flex flex-col sm:flex-row gap-3 mt-1">
               <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium ${
-                currentStreak >= 3
+                currentStreak >= 1
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border bg-secondary text-muted-foreground"
               }`}>
                 <Flame className="w-4 h-4" />
-                <span>Racha: {currentStreak}/3 días</span>
-                {currentStreak >= 3 && <CheckCircle2 className="w-3.5 h-3.5" />}
+                <span>Racha: {currentStreak}/1 día</span>
+                {currentStreak >= 1 && <CheckCircle2 className="w-3.5 h-3.5" />}
               </div>
               <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium ${
-                level >= 3
+                level >= 1
                   ? "border-rpg-gold/40 bg-rpg-gold/10 text-rpg-gold"
                   : "border-border bg-secondary text-muted-foreground"
               }`}>
                 <Star className="w-4 h-4" />
-                <span>Nivel: {level}/3</span>
-                {level >= 3 && <CheckCircle2 className="w-3.5 h-3.5" />}
+                <span>Nivel: {level}/1</span>
+                {level >= 1 && <CheckCircle2 className="w-3.5 h-3.5" />}
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Mantén tu racha y sube de nivel para desbloquear este formulario.
+              Completa tu primer día de racha y alcanza el nivel 1 para desbloquear este formulario.
             </p>
           </div>
         </div>

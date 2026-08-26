@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { Database } from '@/types/database.types'
 
 /**
  * Always create a new client per function call — never store in a global variable.
@@ -8,7 +9,7 @@ import { cookies } from 'next/headers'
 export async function createClient() {
   const cookieStore = await cookies()
 
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -20,7 +21,6 @@ export async function createClient() {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               // Cast to any to avoid @supabase/ssr <-> next/headers ResponseCookie type mismatch
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               cookieStore.set(name, value, options as any)
             )
           } catch {

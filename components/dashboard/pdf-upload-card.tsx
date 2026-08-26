@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { FileUp, Loader2, Swords, Sparkles } from "lucide-react"
+import { FileUp, Loader2, Swords, Sparkles, BrainCircuit } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import { DIFFICULTY_CONFIG } from "@/lib/types"
 import { toast } from "sonner"
 
@@ -14,13 +15,49 @@ interface PdfUploadCardProps {
 
 type Difficulty = "easy" | "normal" | "hard"
 
+// Stage labels shown while the AI processes the PDF, keyed by elapsed
+// seconds. The backend is a single request/response with no progress
+// events, so this is a simulated (not real) progress indicator — its job
+// is purely to reassure the user the app isn't frozen.
+const PROGRESS_STAGES = [
+  { afterSeconds: 0, label: "Subiendo tu PDF..." },
+  { afterSeconds: 3, label: "Extrayendo el texto del documento..." },
+  { afterSeconds: 9, label: "La IA está generando las preguntas..." },
+  { afterSeconds: 25, label: "Puliendo los últimos detalles..." },
+]
+
 export function PdfUploadCard({ onGameCreated }: PdfUploadCardProps) {
   const [file, setFile] = useState<File | null>(null)
   const [difficulty, setDifficulty] = useState<Difficulty>("normal")
   const [loading, setLoading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [stageLabel, setStageLabel] = useState(PROGRESS_STAGES[0].label)
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    if (!loading) return
+
+    setProgress(0)
+    setStageLabel(PROGRESS_STAGES[0].label)
+    const startedAt = Date.now()
+
+    const interval = setInterval(() => {
+      const elapsedSeconds = (Date.now() - startedAt) / 1000
+
+      // Asymptotically approach 92% so the bar never falsely claims
+      // completion before the response actually arrives.
+      const target = 92
+      const simulated = target * (1 - Math.exp(-elapsedSeconds / 14))
+      setProgress((prev) => Math.max(prev, simulated))
+
+      const stage = [...PROGRESS_STAGES].reverse().find((s) => elapsedSeconds >= s.afterSeconds)
+      if (stage) setStageLabel(stage.label)
+    }, 250)
+
+    return () => clearInterval(interval)
+  }, [loading])
 
   function handleFile(f: File | undefined) {
     if (!f) return
@@ -55,6 +92,8 @@ export function PdfUploadCard({ onGameCreated }: PdfUploadCardProps) {
       }
 
       const { sessionId } = await res.json()
+      setProgress(100)
+      setStageLabel("¡Listo! Preparando tu partida...")
       onGameCreated()
       router.push(`/game/${sessionId}`)
     } catch (err) {
@@ -163,6 +202,40 @@ export function PdfUploadCard({ onGameCreated }: PdfUploadCardProps) {
                   </span>
                 )}
               </Button>
+
+              <AnimatePresence>
+                {loading && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4 overflow-hidden"
+                  >
+                    <div className="rounded-lg border border-border/50 bg-secondary/30 p-4">
+                      <div className="flex items-center gap-2 mb-2.5">
+                        <BrainCircuit className="w-4 h-4 text-primary shrink-0 animate-pulse" />
+                        <AnimatePresence mode="wait">
+                          <motion.span
+                            key={stageLabel}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-sm font-medium text-foreground"
+                          >
+                            {stageLabel}
+                          </motion.span>
+                        </AnimatePresence>
+                      </div>
+                      <Progress value={progress} className="h-2" />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        La app no se colgó — analizando tu PDF. Esto puede tardar hasta un minuto
+                        según su tamaño.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>

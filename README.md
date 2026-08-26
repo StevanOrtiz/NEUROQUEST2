@@ -133,7 +133,10 @@ lib/
   supabase/               Clientes Supabase
 
 scripts/
-  001_*.sql ... 015_*.sql Migraciones SQL
+  001_*.sql ... 025_*.sql Migraciones SQL
+
+types/
+  database.types.ts       Tipos generados desde el esquema real de Supabase
 ```
 
 ---

@@ -48,6 +48,16 @@ In Supabase SQL Editor, run the scripts in order:
 13. `scripts/013_user_usage_reports.sql`
 14. `scripts/014_user_achievements.sql`
 15. `scripts/015_personal_chest_tasks.sql`
+16. `scripts/016_api_rate_limit_events.sql`
+17. `scripts/017_sus_responses_fix.sql`
+18. `scripts/018_game_sessions_double_xp.sql`
+19. `scripts/019_security_definer_fixes.sql`
+20. `scripts/020_fk_performance_indexes.sql`
+21. `scripts/021_rls_performance_fixes.sql`
+22. `scripts/022_drop_perks.sql`
+23. `scripts/023_revoke_anon_update_streak.sql`
+24. `scripts/024_consolidate_sus_responses_select_policy.sql`
+25. `scripts/025_sus_requirement_streak_level_one.sql`
 
 Run them in order because later scripts reference earlier tables.
 
@@ -130,7 +140,10 @@ lib/
   types.ts             Shared app types
 
 scripts/
-  001_*.sql through 015_*.sql
+  001_*.sql through 025_*.sql
+
+types/
+  database.types.ts   Generated Supabase types (regenerate with the Supabase MCP tool after schema changes)
 ```
 
 ## Common Errors

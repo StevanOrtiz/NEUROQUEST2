@@ -2,18 +2,31 @@ import { getDashboardUser } from "@/lib/auth/dashboard-user"
 import { grantAchievement } from "@/lib/achievements/grant"
 import { countTables, processTaskPdf } from "@/lib/tasks/document-processing"
 import { getTaskDocumentsBucket } from "@/lib/tasks/storage-cleanup"
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit/check-rate-limit"
 
 interface Params {
   params: Promise<{ taskId: string }>
 }
 
 const MAX_UPLOAD_BYTES = Number(process.env.DOCUMENT_MAX_ORIGINAL_UPLOAD_MB ?? 10) * 1024 * 1024
+const RATE_LIMIT_ROUTE = "tasks/documents"
+const RATE_LIMIT_MAX_EVENTS = 15
+const RATE_LIMIT_WINDOW_MINUTES = 10
 
 export const runtime = "nodejs"
 
 export async function POST(req: Request, { params }: Params) {
   const { taskId } = await params
   const { supabase, user } = await getDashboardUser()
+
+  const rateLimit = await checkRateLimit(supabase, user.id, RATE_LIMIT_ROUTE, {
+    maxEvents: RATE_LIMIT_MAX_EVENTS,
+    windowMinutes: RATE_LIMIT_WINDOW_MINUTES,
+  })
+
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit)
+  }
 
   const { data: task } = await supabase
     .from("user_tasks")

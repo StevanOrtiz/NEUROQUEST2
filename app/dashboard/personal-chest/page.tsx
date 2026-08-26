@@ -1,5 +1,6 @@
 import { PersonalChestClient } from "@/components/tasks/personal-chest-client"
 import { getDashboardUser } from "@/lib/auth/dashboard-user"
+import type { UserTask, TaskDocument } from "@/lib/tasks/types"
 
 export default async function PersonalChestPage() {
   const { supabase, user } = await getDashboardUser()
@@ -19,8 +20,8 @@ export default async function PersonalChestPage() {
 
   return (
     <PersonalChestClient
-      initialTasks={tasks ?? []}
-      initialDocuments={documents ?? []}
+      initialTasks={(tasks ?? []) as UserTask[]}
+      initialDocuments={(documents ?? []) as TaskDocument[]}
     />
   )
 }

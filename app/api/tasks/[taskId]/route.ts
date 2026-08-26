@@ -1,6 +1,7 @@
 import { getDashboardUser } from "@/lib/auth/dashboard-user"
 import { grantAchievement } from "@/lib/achievements/grant"
 import { removeStorageFiles } from "@/lib/tasks/storage-cleanup"
+import type { TablesUpdate } from "@/types/database.types"
 
 interface Params {
   params: Promise<{ taskId: string }>
@@ -11,7 +12,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const { supabase, user } = await getDashboardUser()
   const body = await req.json().catch(() => null)
 
-  const patch: Record<string, unknown> = {
+  const patch: TablesUpdate<"user_tasks"> = {
     updated_at: new Date().toISOString(),
   }
 

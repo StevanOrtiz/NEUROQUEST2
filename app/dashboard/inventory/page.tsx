@@ -1,5 +1,6 @@
 import { InventoryClient } from "@/components/inventory/inventory-client"
 import { getDashboardUser } from "@/lib/auth/dashboard-user"
+import type { InventoryItem } from "@/lib/types"
 
 export default async function InventoryPage() {
   const { supabase, user } = await getDashboardUser()
@@ -17,5 +18,10 @@ export default async function InventoryPage() {
       .order("created_at", { ascending: false }),
   ])
 
-  return <InventoryClient items={inventory ?? []} chests={chests ?? []} />
+  return (
+    <InventoryClient
+      items={(inventory ?? []) as InventoryItem[]}
+      chests={(chests ?? []).map((c) => ({ ...c, is_opened: c.is_opened ?? false, created_at: c.created_at ?? "" }))}
+    />
+  )
 }

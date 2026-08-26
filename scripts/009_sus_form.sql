@@ -25,7 +25,7 @@ create table if not exists public.sus_responses (
   submitted_at    timestamptz  not null default now()
 );
 
-comment on table public.sus_responses is 'System Usability Scale responses, one row per submission per user. Users need streak >= 3 and level >= 3 to submit.';
+comment on table public.sus_responses is 'System Usability Scale responses, one row per submission per user. Users need streak >= 1 and level >= 1 to submit.';
 
 -- RLS
 alter table public.sus_responses enable row level security;

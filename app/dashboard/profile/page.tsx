@@ -1,5 +1,6 @@
 import { ProfileContent } from "@/components/profile/profile-content"
 import { getDashboardUser } from "@/lib/auth/dashboard-user"
+import type { GameSession } from "@/lib/types"
 
 export default async function ProfilePage() {
   const { supabase, user } = await getDashboardUser()
@@ -25,7 +26,7 @@ export default async function ProfilePage() {
   return (
     <ProfileContent
       profile={profile}
-      sessions={sessions ?? []}
+      sessions={(sessions ?? []) as GameSession[]}
       achievements={achievements ?? []}
       email={user.email ?? ""}
     />

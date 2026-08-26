@@ -31,14 +31,14 @@ export default async function SectionPage({ params }: SectionPageProps) {
     .eq("subject_id", subjectId)
     .single()
 
-  const unlockedSections: string[] = progress?.unlocked_sections ?? []
+  const unlockedSections: string[] = (progress?.unlocked_sections as string[] | undefined) ?? []
   const isUnlocked = unlockedSections.includes(sectionId)
 
   if (!isUnlocked) {
     redirect(`/dashboard/subjects/${subjectId}`)
   }
 
-  const completedSections: string[] = progress?.completed_sections ?? []
+  const completedSections: string[] = (progress?.completed_sections as string[] | undefined) ?? []
   const isCompleted = completedSections.includes(sectionId)
 
   return (

@@ -6,8 +6,19 @@ import {
   summarizeAnthropicUsage,
   type AnthropicCacheStatus,
   type AnthropicUsageSummary,
+  type CacheControlWithTtl,
 } from "@/lib/ai/anthropic-cache"
 import { estimateTokens } from "@/lib/ai/pdf-text"
+
+// @anthropic-ai/sdk@0.39.0 types cache_control without `ttl` (see anthropic-cache.ts).
+// These widen the two block shapes we actually send so the SDK's own types keep
+// checking everything else (model, message shape, document source) without a blanket `as any`.
+type TextBlockWithTtlCache = Omit<Anthropic.TextBlockParam, "cache_control"> & {
+  cache_control?: CacheControlWithTtl
+}
+type DocumentBlockWithTtlCache = Omit<Anthropic.DocumentBlockParam, "cache_control"> & {
+  cache_control?: CacheControlWithTtl
+}
 
 export interface GeneratedQuestion {
   question_text: string
@@ -16,9 +27,12 @@ export interface GeneratedQuestion {
   explanation: string
 }
 
+export type QuestionDifficulty = "easy" | "normal" | "hard"
+
 export interface GenerateQuestionsInput {
   pdfName: string
   pdfText: string
+  difficulty: QuestionDifficulty
   difficultyLabel: string
   numQuestions: number
   pdfBuffer?: Buffer
@@ -46,6 +60,23 @@ const STABLE_INSTRUCTIONS = [
   "La salida debe ser solo JSON valido, sin markdown.",
 ].join("\n")
 
+// Per-request difficulty calibration on a 1-10 scale. Kept out of
+// STABLE_INSTRUCTIONS on purpose: that block (plus the PDF text right after
+// it) is what carries the cache_control breakpoint for Anthropic prompt
+// caching, so it must stay byte-identical across every call regardless of
+// difficulty to keep cache hits working exactly as before. This guidance
+// only affects the small per-request "task" block appended after the
+// cached prefix, so it costs a few dozen extra tokens per call but never
+// invalidates or fragments the cache.
+const DIFFICULTY_GUIDANCE: Record<QuestionDifficulty, string> = {
+  easy:
+    "Nivel de dificultad conceptual: 3/10. Preguntas de reconocimiento directo: definiciones, datos explicitos y hechos aislados que aparecen tal cual en el texto. No combines varias ideas ni pidas inferencias. Los distractores deben ser claramente incorrectos para quien leyo el material.",
+  normal:
+    "Nivel de dificultad conceptual: 6/10. Preguntas de comprension y aplicacion: exige relacionar dos ideas del texto o aplicar un concepto a un caso simple no copiado literalmente. Los distractores deben ser plausibles pero distinguibles prestando atencion.",
+  hard:
+    "Nivel de dificultad conceptual: 9/10. Preguntas de analisis e inferencia: exige conectar varias partes del texto, razonar sobre causas/consecuencias, o distinguir matices y excepciones. Los distractores deben ser sutiles y requerir comprension profunda del material para descartarlos.",
+}
+
 export async function generateQuestionsWithClaude(input: GenerateQuestionsInput): Promise<GenerateQuestionsResult> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5"
@@ -64,10 +95,10 @@ export async function generateQuestionsWithClaude(input: GenerateQuestionsInput)
           content: buildContentBlocks(input, cacheControl),
         },
       ],
-    } as any,
+    },
     {
       headers: getAnthropicBetaHeaders(cacheDecision),
-    } as any
+    }
   )
 
   const text = extractTextContent(response.content)
@@ -83,10 +114,14 @@ export async function generateQuestionsWithClaude(input: GenerateQuestionsInput)
   }
 }
 
-function buildContentBlocks(input: GenerateQuestionsInput, cacheControl: unknown) {
+function buildContentBlocks(
+  input: GenerateQuestionsInput,
+  cacheControl: CacheControlWithTtl | undefined
+): Array<TextBlockWithTtlCache | DocumentBlockWithTtlCache> {
   const task = [
     `PDF: ${input.pdfName}`,
     `Dificultad: ${input.difficultyLabel}`,
+    DIFFICULTY_GUIDANCE[input.difficulty],
     `Numero exacto de preguntas: ${input.numQuestions}`,
     "",
     "Formato obligatorio:",
@@ -113,7 +148,7 @@ function buildContentBlocks(input: GenerateQuestionsInput, cacheControl: unknown
         ...(cacheControl ? { cache_control: cacheControl } : {}),
       },
       { type: "text", text: task },
-    ] as any
+    ]
   }
 
   return [
@@ -124,7 +159,7 @@ function buildContentBlocks(input: GenerateQuestionsInput, cacheControl: unknown
       ...(cacheControl ? { cache_control: cacheControl } : {}),
     },
     { type: "text", text: task },
-  ] as any
+  ]
 }
 
 function getMaxOutputTokens(numQuestions: number) {

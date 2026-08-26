@@ -1,11 +1,18 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
-import { Heart, Divide, SkipForward, Zap, Lightbulb, Package, Lock, Loader2, X } from "lucide-react"
+import { Heart, Divide, SkipForward, Zap, Lightbulb, Package, Lock, Loader2, X, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ChestRoulette } from "@/components/inventory/chest-roulette"
 import type { InventoryItem, ChestReward } from "@/lib/types"
+
+// Only needed the moment a chest is actually opened — split into its own
+// chunk so it's not parsed as part of the inventory page's main bundle.
+const ChestRoulette = dynamic(
+  () => import("@/components/inventory/chest-roulette").then((mod) => mod.ChestRoulette),
+  { ssr: false }
+)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,10 +94,12 @@ interface ChestCardProps {
   chest: Chest
   index: number
   onOpen: (chestId: string) => void
+  onDelete: (chestId: string) => void
   opening: boolean
+  deleting: boolean
 }
 
-function ChestCard({ chest, index, onOpen, opening }: ChestCardProps) {
+function ChestCard({ chest, index, onOpen, onDelete, opening, deleting }: ChestCardProps) {
   const date = new Date(chest.created_at).toLocaleDateString("es", {
     day: "2-digit",
     month: "short",
@@ -98,15 +107,27 @@ function ChestCard({ chest, index, onOpen, opening }: ChestCardProps) {
 
   return (
     <motion.div
-      className={`p-4 rounded-xl border flex flex-col items-center gap-3 ${
+      className={`relative p-4 rounded-xl border flex flex-col items-center gap-3 ${
         chest.is_opened
           ? "border-border/40 bg-card/40 opacity-50"
           : "border-yellow-500/40 bg-yellow-500/5"
       }`}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
       transition={{ delay: index * 0.06 }}
     >
+      {chest.is_opened && (
+        <button
+          onClick={() => onDelete(chest.id)}
+          disabled={deleting}
+          title="Borrar cofre abierto"
+          className="absolute top-2 right-2 p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+        >
+          {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+        </button>
+      )}
+
       <div
         className={`w-14 h-14 rounded-xl flex items-center justify-center ${
           chest.is_opened ? "bg-secondary" : "bg-yellow-500/15"
@@ -210,12 +231,15 @@ export function InventoryClient({ items: initialItems, chests: initialChests }: 
   const [items, setItems] = useState(initialItems)
   const [chests, setChests] = useState(initialChests)
   const [openingChestId, setOpeningChestId] = useState<string | null>(null)
+  const [deletingChestId, setDeletingChestId] = useState<string | null>(null)
+  const [clearingOpened, setClearingOpened] = useState(false)
   const [rouletteState, setRouletteState] = useState<{
     rouletteItems: ChestReward[]
     finalReward: ChestReward
   } | null>(null)
 
   const unopenedCount = chests.filter((c) => !c.is_opened).length
+  const openedCount = chests.filter((c) => c.is_opened).length
 
   async function handleOpenChest(chestId: string) {
     setOpeningChestId(chestId)
@@ -258,6 +282,34 @@ export function InventoryClient({ items: initialItems, chests: initialChests }: 
       console.error(err)
     } finally {
       setOpeningChestId(null)
+    }
+  }
+
+  async function handleDeleteChest(chestId: string) {
+    setDeletingChestId(chestId)
+    try {
+      const res = await fetch(`/api/game/chest/${chestId}`, { method: "DELETE" })
+      if (res.ok) {
+        setChests((prev) => prev.filter((c) => c.id !== chestId))
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeletingChestId(null)
+    }
+  }
+
+  async function handleClearOpenedChests() {
+    setClearingOpened(true)
+    try {
+      const res = await fetch("/api/game/chest", { method: "DELETE" })
+      if (res.ok) {
+        setChests((prev) => prev.filter((c) => !c.is_opened))
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setClearingOpened(false)
     }
   }
 
@@ -323,17 +375,39 @@ export function InventoryClient({ items: initialItems, chests: initialChests }: 
                   </p>
                 </motion.div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {chests.map((chest, i) => (
-                    <ChestCard
-                      key={chest.id}
-                      chest={chest}
-                      index={i}
-                      onOpen={handleOpenChest}
-                      opening={openingChestId === chest.id}
-                    />
-                  ))}
-                </div>
+                <>
+                  {openedCount > 0 && (
+                    <div className="flex justify-end mb-3">
+                      <button
+                        onClick={handleClearOpenedChests}
+                        disabled={clearingOpened}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                      >
+                        {clearingOpened ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                        Limpiar cofres abiertos ({openedCount})
+                      </button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <AnimatePresence>
+                      {chests.map((chest, i) => (
+                        <ChestCard
+                          key={chest.id}
+                          chest={chest}
+                          index={i}
+                          onOpen={handleOpenChest}
+                          onDelete={handleDeleteChest}
+                          opening={openingChestId === chest.id}
+                          deleting={deletingChestId === chest.id}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </>
               )}
             </motion.div>
           )}

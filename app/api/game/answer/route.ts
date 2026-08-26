@@ -36,21 +36,24 @@ export async function POST(req: Request) {
 
   const isCorrect = answer === question.correct_option
 
-  await supabase
-    .from("questions")
-    .update({
-      answered: true,
-      user_answer: answer,
-      is_correct: isCorrect,
-    })
-    .eq("id", questionId)
-
-  const { data: session } = await supabase
-    .from("game_sessions")
-    .select("*")
-    .eq("id", question.session_id)
-    .eq("user_id", user.id)
-    .single()
+  // Independent: marking the question answered doesn't need to happen
+  // before reading the session row (different tables, no shared data).
+  const [, { data: session }] = await Promise.all([
+    supabase
+      .from("questions")
+      .update({
+        answered: true,
+        user_answer: answer,
+        is_correct: isCorrect,
+      })
+      .eq("id", questionId),
+    supabase
+      .from("game_sessions")
+      .select("*")
+      .eq("id", question.session_id)
+      .eq("user_id", user.id)
+      .single(),
+  ])
 
   if (!session) {
     return Response.json({ error: "Sesion no encontrada" }, { status: 404 })
@@ -81,31 +84,45 @@ export async function POST(req: Request) {
   const isFinished = newStatus === "victory" || newStatus === "defeat"
   const accuracy = session.total_questions > 0 ? (newCorrect / session.total_questions) * 100 : 0
 
-  await supabase
-    .from("game_sessions")
-    .update({
-      correct_answers: newCorrect,
-      wrong_answers: newWrong,
-      lives_remaining: Math.max(newLives, 0),
-      current_question_index: newQuestionIndex,
-      xp_earned: newXp,
-      status: newStatus,
-      ...(doubleXpActive ? { double_xp_active: false } : {}),
-      ...(isFinished ? { finished_at: new Date().toISOString() } : {}),
-    } as never)
-    .eq("id", session.id)
+  // Independent: updating the session row and (if the game just ended)
+  // reading the profile row touch different tables with no shared data.
+  const [, { data: profile }] = await Promise.all([
+    supabase
+      .from("game_sessions")
+      .update({
+        correct_answers: newCorrect,
+        wrong_answers: newWrong,
+        lives_remaining: Math.max(newLives, 0),
+        current_question_index: newQuestionIndex,
+        xp_earned: newXp,
+        status: newStatus,
+        ...(doubleXpActive ? { double_xp_active: false } : {}),
+        ...(isFinished ? { finished_at: new Date().toISOString() } : {}),
+      } as never)
+      .eq("id", session.id),
+    isFinished
+      ? supabase
+          .from("profiles")
+          .select("xp, total_games, total_correct, level")
+          .eq("id", user.id)
+          .single()
+      : Promise.resolve({ data: null as { xp: number; total_games: number; total_correct: number; level: number } | null }),
+  ])
 
   let grantedAchievements: GrantedAchievement[] = []
 
   if (isFinished) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("xp, total_games, total_correct, level")
-      .eq("id", user.id)
-      .single()
-
     const oldLevel = profile?.level ?? 1
     let newLevel = oldLevel
+
+    // Independent of the profile update / streak RPC below (different
+    // table) — kick it off now, await it only once it's actually needed
+    // for the achievement checks further down.
+    const subjectLinkPromise = supabase
+      .from("subject_game_sessions")
+      .select("id")
+      .eq("session_id", session.id)
+      .maybeSingle()
 
     if (profile) {
       const updatedXp = profile.xp + newXp
@@ -130,11 +147,7 @@ export async function POST(req: Request) {
 
     const streakResult = await updateUserStreak(user.id)
 
-    const { data: subjectLink } = await supabase
-      .from("subject_game_sessions")
-      .select("id")
-      .eq("session_id", session.id)
-      .maybeSingle()
+    const { data: subjectLink } = await subjectLinkPromise
 
     grantedAchievements = await grantAchievements(supabase, user.id, [
       ...(newStatus === "victory" ? [{ code: "first_victory" as const }] : []),

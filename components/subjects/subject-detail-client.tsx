@@ -19,7 +19,6 @@ import { toast } from "sonner"
 
 interface SubjectDetailClientProps {
   subject: Subject
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   progress: any | null
 }
 

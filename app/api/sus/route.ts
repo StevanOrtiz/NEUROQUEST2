@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
-  // Verify streak >= 3 and level >= 3
+  // Verify streak >= 1 and level >= 1
   const { data: profile } = await supabase
     .from("profiles")
     .select("current_streak, level")
@@ -22,9 +22,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Perfil no encontrado" }, { status: 404 })
   }
 
-  if (profile.current_streak < 3 || profile.level < 3) {
+  if (profile.current_streak < 1 || profile.level < 1) {
     return NextResponse.json(
-      { error: "Necesitas al menos 3 días de racha y nivel 3 para completar el formulario SUS." },
+      { error: "Necesitas al menos 1 día de racha y nivel 1 para completar el formulario SUS." },
       { status: 403 }
     )
   }

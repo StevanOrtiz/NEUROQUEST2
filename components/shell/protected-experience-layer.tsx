@@ -2,7 +2,11 @@
 
 import dynamic from "next/dynamic"
 import { usePathname } from "next/navigation"
-import { AchievementUnlockOverlay } from "@/components/achievements/achievement-unlock-overlay"
+
+const AchievementUnlockOverlay = dynamic(
+  () => import("@/components/achievements/achievement-unlock-overlay").then((mod) => mod.AchievementUnlockOverlay),
+  { ssr: false }
+)
 
 const PixelCatMascot = dynamic(
   () => import("@/components/mascot/pixel-cat-mascot").then((mod) => mod.PixelCatMascot),

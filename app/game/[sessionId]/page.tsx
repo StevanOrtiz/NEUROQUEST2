@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { GameClient } from "@/components/game/game-client"
 import { getDashboardUser } from "@/lib/auth/dashboard-user"
+import type { GameSession, Question, InventoryItem } from "@/lib/types"
 
 interface GamePageProps {
   params: Promise<{ sessionId: string }>
@@ -17,34 +18,36 @@ export default async function GamePage({ params }: GamePageProps) {
   const { sessionId } = await params
   const { supabase, user } = await getDashboardUser()
 
-  const { data: session } = await supabase
-    .from("game_sessions")
-    .select("*")
-    .eq("id", sessionId)
-    .eq("user_id", user.id)
-    .single()
+  // These four queries don't depend on each other's results, so they're
+  // fired together instead of awaited one at a time.
+  const [{ data: session }, { data: questions }, { data: inventory }, { data: subjectLink }] =
+    await Promise.all([
+      supabase
+        .from("game_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .eq("user_id", user.id)
+        .single(),
+      supabase
+        .from("questions")
+        .select("*")
+        .eq("session_id", sessionId)
+        .eq("user_id", user.id)
+        .order("question_index", { ascending: true }),
+      // Inventory for power-ups
+      supabase
+        .from("inventory_items")
+        .select("*")
+        .eq("user_id", user.id),
+      // Is this session linked to a subject quiz?
+      supabase
+        .from("subject_game_sessions")
+        .select("subject_id, module_id, section_id, quiz_type")
+        .eq("session_id", sessionId)
+        .single(),
+    ])
 
   if (!session) redirect("/dashboard")
-
-  const { data: questions } = await supabase
-    .from("questions")
-    .select("*")
-    .eq("session_id", sessionId)
-    .eq("user_id", user.id)
-    .order("question_index", { ascending: true })
-
-  // Get inventory for power-ups
-  const { data: inventory } = await supabase
-    .from("inventory_items")
-    .select("*")
-    .eq("user_id", user.id)
-
-  // Check if this session is linked to a subject quiz
-  const { data: subjectLink } = await supabase
-    .from("subject_game_sessions")
-    .select("subject_id, module_id, section_id, quiz_type")
-    .eq("session_id", sessionId)
-    .single()
 
   const subjectContext: SubjectContext | null = subjectLink
     ? {
@@ -57,9 +60,9 @@ export default async function GamePage({ params }: GamePageProps) {
 
   return (
     <GameClient
-      session={session}
-      questions={questions ?? []}
-      inventory={inventory ?? []}
+      session={session as GameSession}
+      questions={(questions ?? []) as Question[]}
+      inventory={(inventory ?? []) as InventoryItem[]}
       subjectContext={subjectContext}
     />
   )

@@ -22,13 +22,10 @@ export default function SignUpPage() {
     setLoading(true)
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo:
-          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-          `${window.location.origin}/dashboard`,
         data: {
           display_name: displayName || "Aventurero",
         },
@@ -41,7 +38,20 @@ export default function SignUpPage() {
       return
     }
 
-    router.push("/auth/sign-up-success")
+    if (!data.session) {
+      // Supabase todavia exige confirmar el correo a nivel de proyecto.
+      // Desactiva "Confirm email" en Supabase > Authentication > Providers > Email
+      // para que signUp() entregue sesion inmediatamente.
+      toast.error(
+        "Tu cuenta se creo, pero Supabase aun requiere confirmar el correo. Desactiva 'Confirm email' en el dashboard de Supabase para iniciar sesion automaticamente."
+      )
+      setLoading(false)
+      return
+    }
+
+    toast.success("Cuenta creada, bienvenido!")
+    router.push("/dashboard")
+    router.refresh()
   }
 
   return (

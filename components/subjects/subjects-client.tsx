@@ -9,7 +9,6 @@ import { BookOpen, CheckCircle2, Lock, ChevronRight } from "lucide-react"
 
 interface SubjectsClientProps {
   subjects: Subject[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   progressMap: Record<string, any>
 }
 

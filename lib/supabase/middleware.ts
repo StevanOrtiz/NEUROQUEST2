@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies"
 import { NextResponse, type NextRequest } from "next/server"
+import type { Database } from "@/types/database.types"
 
 function isProtectedPath(pathname: string) {
   return (
@@ -42,7 +43,7 @@ export async function updateSession(request: NextRequest) {
   })
 
   try {
-    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll()

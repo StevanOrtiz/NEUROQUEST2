@@ -1,7 +1,6 @@
 import { createHash } from "crypto"
 
 export interface PdfTextResult {
-  sourceHash: string
   fullTextChars: number
   inputText: string
   inputChars: number
@@ -13,7 +12,6 @@ export interface PdfTextResult {
 const MIN_SELECTABLE_TEXT_CHARS = 600
 
 export async function extractPdfTextForClaude(pdfBuffer: Buffer): Promise<PdfTextResult> {
-  const sourceHash = createHash("sha256").update(pdfBuffer).digest("hex")
   const pdfParse = (await import("pdf-parse")).default
   const parsed = await pdfParse(pdfBuffer)
   const cleaned = cleanPdfText(parsed.text ?? "")
@@ -28,7 +26,6 @@ export async function extractPdfTextForClaude(pdfBuffer: Buffer): Promise<PdfTex
   const limited = limitTextDistributed(cleaned, maxInputChars)
 
   return {
-    sourceHash,
     fullTextChars: cleaned.length,
     inputText: limited.text,
     inputChars: limited.text.length,
@@ -52,7 +49,7 @@ function getMaxInputChars() {
   return parsed
 }
 
-function cleanPdfText(text: string) {
+export function cleanPdfText(text: string) {
   return text
     .replace(/\r/g, "\n")
     .replace(/([A-Za-zÁÉÍÓÚÜÑáéíóúüñ])-+\n\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ])/g, "$1$2")
@@ -67,7 +64,7 @@ function cleanPdfText(text: string) {
     .trim()
 }
 
-function limitTextDistributed(text: string, maxChars: number) {
+export function limitTextDistributed(text: string, maxChars: number) {
   if (text.length <= maxChars) {
     return { text, truncated: false }
   }

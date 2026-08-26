@@ -129,74 +129,66 @@
   box-shadow: 0 0 25px oklch(0.70 0.20 300 / 0.4), 0 0 50px oklch(0.70 0.20 300 / 0.15);
 }
 
+/* Diagonal sweep hover effect (Uiverse.io by adamgiebl), recolored to the
+   RPG theme's primary token instead of the original royalblue. Used only
+   on the primary/"default" Button variant. */
+.btn-sweep {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.btn-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 2px solid var(--primary);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.btn-sweep::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8%;
+  height: 500%;
+  background: var(--muted-foreground);
+  transform: translate(-50%, -50%) rotate(-60deg);
+  transition: transform 0.3s ease, width 0.3s ease, background 0.3s ease;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.btn-sweep:hover::after {
+  transform: translate(-50%, -50%) rotate(-90deg);
+  width: 100%;
+  background: var(--primary);
+}
+
+.btn-sweep:hover {
+  color: var(--primary-foreground);
+}
+
+.btn-sweep:active::after {
+  background: color-mix(in oklch, var(--primary) 80%, black);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-sweep::after {
+    transition: none;
+  }
+}
+
 /* Pixel-esque grid pattern for backgrounds */
 .rpg-grid-bg {
   background-image: 
     linear-gradient(oklch(0.28 0.03 280 / 0.3) 1px, transparent 1px),
     linear-gradient(90deg, oklch(0.28 0.03 280 / 0.3) 1px, transparent 1px);
   background-size: 40px 40px;
-}
-
-.dashboard-main-bg {
-  --dashboard-mouse-x: 50%;
-  --dashboard-mouse-y: 28%;
-  --dashboard-tilt-x: 0px;
-  --dashboard-tilt-y: 0px;
-  position: relative;
-  isolation: isolate;
-}
-
-.dashboard-main-bg::before {
-  content: "";
-  position: absolute;
-  inset: -16px -12px;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      360px circle at var(--dashboard-mouse-x) var(--dashboard-mouse-y),
-      oklch(0.72 0.20 145 / 0.28),
-      transparent 58%
-    ),
-    linear-gradient(115deg, transparent 0 18%, oklch(0.78 0.15 85 / 0.08) 22%, transparent 34% 100%),
-    linear-gradient(245deg, transparent 0 22%, oklch(0.65 0.18 250 / 0.11) 28%, transparent 42% 100%),
-    linear-gradient(oklch(0.72 0.20 145 / 0.16) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.78 0.15 85 / 0.10) 1px, transparent 1px);
-  background-position:
-    center,
-    calc(50% + var(--dashboard-tilt-x)) calc(50% + var(--dashboard-tilt-y)),
-    calc(50% - var(--dashboard-tilt-x)) calc(50% - var(--dashboard-tilt-y)),
-    0 0,
-    0 0;
-  background-size: auto, 120% 120%, 120% 120%, 42px 42px, 42px 42px;
-  border-radius: 18px;
-  opacity: 0.95;
-  transition: opacity 180ms ease, filter 180ms ease;
-  animation: dashboard-bg-drift 14s linear infinite;
-}
-
-.dashboard-main-bg::after {
-  content: "";
-  position: absolute;
-  inset: -16px -12px;
-  z-index: -1;
-  pointer-events: none;
-  border-radius: 18px;
-  background-image:
-    radial-gradient(circle, oklch(0.82 0.16 85 / 0.22) 0 1px, transparent 1.5px),
-    radial-gradient(circle, oklch(0.72 0.20 145 / 0.18) 0 1px, transparent 1.6px);
-  background-size: 96px 96px, 132px 132px;
-  background-position:
-    calc(14px + var(--dashboard-tilt-x)) calc(20px + var(--dashboard-tilt-y)),
-    calc(48px - var(--dashboard-tilt-x)) calc(34px - var(--dashboard-tilt-y));
-  mask-image: linear-gradient(to bottom, transparent, black 10%, black 82%, transparent);
-  opacity: 0.8;
-  animation: dashboard-spark-drift 18s linear infinite;
-}
-
-.dashboard-main-bg:hover::before {
-  opacity: 1;
-  filter: saturate(1.18);
 }
 
 .adhd-quiz-card {
@@ -838,32 +830,7 @@
   }
 }
 
-@keyframes dashboard-bg-drift {
-  0% {
-    background-position: center, 48% 50%, 52% 50%, 0 0, 0 0;
-  }
-  100% {
-    background-position: center, 52% 50%, 48% 50%, 42px 42px, -42px 42px;
-  }
-}
-
-@keyframes dashboard-spark-drift {
-  0% {
-    background-position: 14px 20px, 48px 34px;
-  }
-  100% {
-    background-position: 110px 116px, -84px 166px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-main-bg {
-    --dashboard-mouse-x: 50%;
-    --dashboard-mouse-y: 28%;
-  }
-
-  .dashboard-main-bg::before,
-  .dashboard-main-bg::after,
   .adventure-panel::before,
   .adventure-node-active,
   .pixel-cat,

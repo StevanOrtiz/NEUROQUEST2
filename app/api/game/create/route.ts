@@ -2,6 +2,11 @@ import { createClient } from "@/lib/supabase/server"
 import { DIFFICULTY_CONFIG } from "@/lib/types"
 import { extractPdfTextForClaude, getPdfHash } from "@/lib/ai/pdf-text"
 import { generateQuestionsWithClaude, type GeneratedQuestion } from "@/lib/ai/question-generation"
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit/check-rate-limit"
+
+const RATE_LIMIT_ROUTE = "game/create"
+const RATE_LIMIT_MAX_EVENTS = 8
+const RATE_LIMIT_WINDOW_MINUTES = 10
 
 type Difficulty = keyof typeof DIFFICULTY_CONFIG
 
@@ -17,6 +22,15 @@ export async function POST(req: Request) {
 
   if (!user) {
     return Response.json({ error: "No autenticado" }, { status: 401 })
+  }
+
+  const rateLimit = await checkRateLimit(supabase, user.id, RATE_LIMIT_ROUTE, {
+    maxEvents: RATE_LIMIT_MAX_EVENTS,
+    windowMinutes: RATE_LIMIT_WINDOW_MINUTES,
+  })
+
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit)
   }
 
   try {
@@ -88,6 +102,7 @@ export async function POST(req: Request) {
     const generated = await generateQuestionsWithClaude({
       pdfName,
       pdfText: inputText,
+      difficulty: validDifficulty,
       difficultyLabel: config.label,
       numQuestions,
       pdfBuffer: sourceMode === "direct_pdf_fallback" ? pdfBuffer : undefined,

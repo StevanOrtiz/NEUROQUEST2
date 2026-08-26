@@ -90,6 +90,10 @@ export function usePomodoroTimer() {
   })
   const [isInitialized, setIsInitialized] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedAtRef = useRef(0)
+  const latestStateRef = useRef(state)
+  latestStateRef.current = state
 
   // Initialize from localStorage
   useEffect(() => {
@@ -99,12 +103,57 @@ export function usePomodoroTimer() {
     setIsInitialized(true)
   }, [])
 
-  // Save state to localStorage when it changes
+  // Save state to localStorage when it changes. While the timer is actively
+  // ticking (once/second), this throttles the actual disk write to at most
+  // once every 5s instead of every tick — the on-screen countdown still
+  // updates every second via React state regardless, only the persistence
+  // frequency changes. Any non-tick change (start/pause/reset/mode/complete)
+  // still saves immediately since `isRunning` is false in all those cases.
   useEffect(() => {
-    if (isInitialized) {
-      saveState(state)
+    if (!isInitialized) return
+
+    function flush() {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = null
+      }
+      saveState(latestStateRef.current)
+      lastSavedAtRef.current = Date.now()
     }
+
+    if (!state.isRunning) {
+      flush()
+      return
+    }
+
+    if (saveTimeoutRef.current) return
+
+    const delay = Math.max(5000 - (Date.now() - lastSavedAtRef.current), 0)
+    saveTimeoutRef.current = setTimeout(flush, delay)
   }, [state, isInitialized])
+
+  // Flush pending writes when the tab is hidden or the component unmounts,
+  // so a backgrounded/closed tab never loses more than a few seconds of
+  // progress.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.hidden && saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = null
+        saveState(latestStateRef.current)
+        lastSavedAtRef.current = Date.now()
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveState(latestStateRef.current)
+      }
+    }
+  }, [])
 
   // Timer interval
   useEffect(() => {

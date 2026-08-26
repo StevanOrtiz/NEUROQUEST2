@@ -5,6 +5,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { grantAchievement, type GrantedAchievement } from "@/lib/achievements/grant"
 import { getSubjectById } from "@/lib/subjects/config"
+import { updateUserStreak } from "@/lib/streak/update-streak"
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -77,10 +78,10 @@ export async function POST(req: Request) {
       return Response.json({ error: "Error en progreso" }, { status: 500 })
     }
 
-    const unlockedModules: string[] = progress.unlocked_modules ?? []
-    const unlockedSections: string[] = progress.unlocked_sections ?? []
-    const completedSections: string[] = progress.completed_sections ?? []
-    const completedModules: string[] = progress.completed_modules ?? []
+    const unlockedModules: string[] = (progress.unlocked_modules as string[] | null) ?? []
+    const unlockedSections: string[] = (progress.unlocked_sections as string[] | null) ?? []
+    const completedSections: string[] = (progress.completed_sections as string[] | null) ?? []
+    const completedModules: string[] = (progress.completed_modules as string[] | null) ?? []
 
     let diagnosticPassed = progress.diagnostic_passed
     let subjectCompleted = progress.subject_completed
@@ -176,6 +177,9 @@ export async function POST(req: Request) {
       .eq("user_id", user.id)
       .eq("subject_id", link.subject_id)
 
+    // ── Update daily streak ─────────────────────────────────
+    const streakResult = await updateUserStreak(user.id)
+
     return Response.json({
       passed,
       diagnosticPassed,
@@ -186,6 +190,7 @@ export async function POST(req: Request) {
       completedSections,
       completedModules,
       achievements,
+      streak: streakResult ?? null,
     })
   } catch (err) {
     console.error("complete-quiz error:", err)
@@ -195,7 +200,6 @@ export async function POST(req: Request) {
 
 // ─── Helper: grant medal using existing inventory system ───
 async function grantMedal(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   userId: string,
   subjectId: string,

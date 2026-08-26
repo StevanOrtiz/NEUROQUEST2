@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type PointerEvent } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { createClient } from "@/lib/supabase/client"
 
 type Mood = "walk" | "sleep" | "jump" | "pet" | "eat" | "happy"
 
@@ -18,7 +17,6 @@ const DEFAULT_MESSAGES = [
 ]
 
 export function PixelCatMascot() {
-  const [visible, setVisible] = useState(false)
   const [position, setPosition] = useState({ x: 24, y: 160 })
   const [mood, setMood] = useState<Mood>("walk")
   const [catName, setCatName] = useState("Michi")
@@ -39,30 +37,25 @@ export function PixelCatMascot() {
   const didDrag = useRef(false)
   const shakeScore = useRef(0)
   const complainedAboutShake = useRef(false)
+  const purrAudioContext = useRef<AudioContext | null>(null)
 
   useEffect(() => {
-    let mounted = true
-    const supabase = createClient()
-
-    supabase.auth.getUser().then(({ data }) => {
-      if (mounted) setVisible(Boolean(data.user))
-    })
-
     const savedName = window.localStorage.getItem("questmind:cat-name")
     if (savedName) setCatName(savedName)
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setVisible(Boolean(session?.user))
-    })
-
     return () => {
-      mounted = false
-      listener.subscription.unsubscribe()
+      void purrAudioContext.current?.close()
+      purrAudioContext.current = null
     }
   }, [])
 
+  // Rendered only on already-auth-protected routes (/dashboard, /game — see
+  // components/shell/protected-experience-layer.tsx), so there's no need to
+  // independently verify the session here. Skipping that removes a redundant
+  // Supabase client + network round trip + a persistent auth listener that
+  // would otherwise stay subscribed for the entire dashboard/game session.
   useEffect(() => {
-    if (!visible) return
+    let paused = false
 
     function showMessage(text: string) {
       setMessage(text)
@@ -82,13 +75,22 @@ export function PixelCatMascot() {
       setMenu(null)
     }
 
+    function onVisibilityChange() {
+      paused = document.hidden
+    }
+
     window.addEventListener("questmind:mascot-message", onMascotMessage)
     window.addEventListener("questmind:achievement", onMascotMessage)
     window.addEventListener("click", closeMenu)
     window.addEventListener("scroll", closeMenu, true)
+    document.addEventListener("visibilitychange", onVisibilityChange)
 
+    // Paused while the tab is hidden (Page Visibility API) — same visible
+    // behavior while the tab is active, just skips waking up the CPU for a
+    // background tab nobody is looking at.
     const moveInterval = window.setInterval(() => {
       if (
+        paused ||
         menuOpenRef.current ||
         interactingRef.current ||
         pointerHeldRef.current ||
@@ -110,6 +112,7 @@ export function PixelCatMascot() {
     }, 6200)
 
     const reminderInterval = window.setInterval(() => {
+      if (paused) return
       showMessage(DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)])
     }, 11 * 60 * 1000)
 
@@ -118,13 +121,14 @@ export function PixelCatMascot() {
       window.removeEventListener("questmind:achievement", onMascotMessage)
       window.removeEventListener("click", closeMenu)
       window.removeEventListener("scroll", closeMenu, true)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
       window.clearInterval(moveInterval)
       window.clearInterval(reminderInterval)
       if (messageTimer.current) window.clearTimeout(messageTimer.current)
       if (moodTimer.current) window.clearTimeout(moodTimer.current)
       if (interactionTimer.current) window.clearTimeout(interactionTimer.current)
     }
-  }, [visible])
+  }, [])
 
   function queueMoodReset(delay = 1400) {
     if (moodTimer.current) window.clearTimeout(moodTimer.current)
@@ -153,11 +157,21 @@ export function PixelCatMascot() {
   }
 
   function playPurr() {
-    const AudioContextClass =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!AudioContextClass) return
+    // Reuse one AudioContext across pets instead of spinning up (and
+    // tearing down) a new audio-device connection on every single tap —
+    // same purr sound, far less audio-subsystem churn on repeated petting.
+    let ctx = purrAudioContext.current
+    if (!ctx) {
+      const AudioContextClass =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!AudioContextClass) return
+      ctx = new AudioContextClass()
+      purrAudioContext.current = ctx
+    }
+    if (ctx.state === "suspended") {
+      void ctx.resume()
+    }
 
-    const ctx = new AudioContextClass()
     const gain = ctx.createGain()
     const low = ctx.createOscillator()
     const warm = ctx.createOscillator()
@@ -188,7 +202,6 @@ export function PixelCatMascot() {
     low.stop(ctx.currentTime + 1.15)
     warm.stop(ctx.currentTime + 1.15)
     tremolo.stop(ctx.currentTime + 1.15)
-    window.setTimeout(() => void ctx.close(), 1400)
   }
 
   function openInteractionMenu(clientX: number, clientY: number) {
@@ -303,8 +316,6 @@ export function PixelCatMascot() {
     setCatName(cleanName)
     showInteractionMessage(`Ahora me llamo ${cleanName}.`, "happy", 4500)
   }
-
-  if (!visible) return null
 
   return (
     <>

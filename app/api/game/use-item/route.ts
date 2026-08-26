@@ -111,11 +111,16 @@ export async function POST(req: Request) {
   // Flag is stored client-side and applied on the next answer XP calculation
   // We also store a session flag so the server-side answer route can double XP
   if (itemType === "double_xp" && sessionId) {
-    await supabase
+    const { error: doubleXpError } = await supabase
       .from("game_sessions")
       .update({ double_xp_active: true } as never)
       .eq("id", sessionId)
       .eq("user_id", user.id)
+
+    if (doubleXpError) {
+      console.error("[use-item] Failed to activate double_xp:", doubleXpError.message)
+      return Response.json({ error: "No se pudo activar doble XP" }, { status: 500 })
+    }
     result.doubleXpActive = true
   }
 

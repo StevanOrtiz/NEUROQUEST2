@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -15,6 +15,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  // A user who's already authenticated (e.g. lands here from a stale
+  // bookmark, browser back, or a confusing link elsewhere) should never
+  // see the login form again — send them straight to the dashboard.
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createClient()
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled && data.user) {
+        router.replace("/dashboard")
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [router])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()

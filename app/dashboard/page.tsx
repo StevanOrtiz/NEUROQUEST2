@@ -2,6 +2,7 @@ import { DashboardContent } from "@/components/dashboard/dashboard-content"
 import { UsageReportBootstrap } from "@/components/research/usage-report-bootstrap"
 import { getDashboardUser } from "@/lib/auth/dashboard-user"
 import { SUBJECTS } from "@/lib/subjects/config"
+import type { GameSession } from "@/lib/types"
 
 export default async function DashboardPage() {
   const { supabase, user } = await getDashboardUser()
@@ -26,7 +27,14 @@ export default async function DashboardPage() {
     ])
 
   const progressMap = Object.fromEntries(
-    (subjectProgress ?? []).map((p) => [p.subject_id, p])
+    (subjectProgress ?? []).map((p) => [
+      p.subject_id,
+      {
+        ...p,
+        completed_modules: (p.completed_modules as string[] | null) ?? [],
+        completed_sections: (p.completed_sections as string[] | null) ?? [],
+      },
+    ])
   )
 
   const showTutorial =
@@ -39,7 +47,7 @@ export default async function DashboardPage() {
       <UsageReportBootstrap />
       <DashboardContent
         profile={profile}
-        recentSessions={recentSessions ?? []}
+        recentSessions={(recentSessions ?? []) as GameSession[]}
         subjects={SUBJECTS}
         subjectProgressMap={progressMap}
         showTutorial={showTutorial}

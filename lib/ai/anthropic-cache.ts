@@ -13,6 +13,15 @@ export interface CacheDecision {
   minimumTokens: number
 }
 
+/**
+ * @anthropic-ai/sdk@0.39.0's CacheControlEphemeral type has no `ttl` field yet
+ * (that came in a later SDK release). This is the real shape the API accepts.
+ */
+export interface CacheControlWithTtl {
+  type: "ephemeral"
+  ttl?: AnthropicCacheTtl
+}
+
 export interface AnthropicUsageSummary {
   uncachedInputTokens: number
   outputTokens: number
@@ -64,7 +73,7 @@ export function decidePromptCache(model: string, estimatedCacheableTokens: numbe
   }
 }
 
-export function buildCacheControl(decision: CacheDecision) {
+export function buildCacheControl(decision: CacheDecision): CacheControlWithTtl | undefined {
   if (!decision.enabled) return undefined
 
   return {
