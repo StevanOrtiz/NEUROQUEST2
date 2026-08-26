@@ -44,22 +44,15 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
   const isUnlocked = currentStreak >= 1 && level >= 1
 
   useEffect(() => {
+    // Always ask the server — this is a one-time-per-user gate, so a
+    // sessionStorage cache here can go stale and permanently misreport
+    // "already completed" (e.g. after the underlying row is deleted/reset)
+    // for as long as the tab stays open.
     async function checkSubmission() {
       try {
-        const cached = window.sessionStorage.getItem("questmind:sus-status")
-        if (cached) {
-          const data = JSON.parse(cached)
-          if (data.submitted) {
-            setSubmitted(true)
-            setFinalScore(parseFloat(data.response.sus_score))
-          }
-          return
-        }
-
         const res = await fetch("/api/sus")
         if (res.ok) {
           const data = await res.json()
-          window.sessionStorage.setItem("questmind:sus-status", JSON.stringify(data))
           if (data.submitted) {
             setSubmitted(true)
             setFinalScore(parseFloat(data.response.sus_score))
@@ -91,10 +84,6 @@ export function SusForm({ currentStreak, level }: SusFormProps) {
       if (!res.ok) throw new Error(data.error)
       setFinalScore(parseFloat(data.sus_score))
       setSubmitted(true)
-      window.sessionStorage.setItem("questmind:sus-status", JSON.stringify({
-        submitted: true,
-        response: { sus_score: data.sus_score },
-      }))
       setCurrentStep(11)
       toast.success("¡Formulario SUS completado!")
     } catch (e: unknown) {

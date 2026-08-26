@@ -49,18 +49,15 @@ export function AdhdScreeningCard() {
   useEffect(() => {
     let cancelled = false
 
+    // Always ask the server — this is a one-time-per-user gate, so a
+    // sessionStorage cache here can go stale and permanently misreport
+    // "already completed" (e.g. after the underlying row is deleted/reset)
+    // for as long as the tab stays open.
     async function loadLatest() {
       try {
-        const cached = window.sessionStorage.getItem("questmind:adhd-screening")
-        if (cached) {
-          if (!cancelled) setResult(JSON.parse(cached).result ?? null)
-          return
-        }
-
         const res = await fetch("/api/adhd-screening")
         if (!res.ok) return
         const data = await res.json()
-        window.sessionStorage.setItem("questmind:adhd-screening", JSON.stringify(data))
         if (!cancelled) setResult(data.result ?? null)
       } finally {
         if (!cancelled) setLoadingLatest(false)
@@ -98,7 +95,6 @@ export function AdhdScreeningCard() {
       }
 
       setResult(data)
-      window.sessionStorage.setItem("questmind:adhd-screening", JSON.stringify({ result: data }))
       setOpen(false)
       toast.success("Resultado guardado")
       dispatchAchievementUnlock(data.achievement)
