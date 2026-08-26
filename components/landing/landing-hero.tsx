@@ -41,13 +41,13 @@ export function LandingHero() {
         </div>
 
         <h1 className="text-4xl md:text-6xl font-bold text-foreground leading-tight text-balance mb-4">
-          Tus apuntes,{" "}
-          <span className="text-primary">tu aventura</span>
+          TUS APUNTES,{" "}
+          <span className="text-primary">AHORA SON TU AVENTURA!</span>
         </h1>
 
         <p className="text-lg md:text-xl text-muted-foreground leading-relaxed mb-8 text-pretty">
-          Sube un PDF, enfrenta preguntas tipo RPG y conquista el conocimiento.
-          Disenado para mentes que necesitan accion para aprender.
+          Sube tus apuntes. Enfrenta preguntas. Gana experiencia. Conquista el conocimiento.
+          Diseñado para mentes que necesitan acción para aprender, La IA se encargara!
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -55,7 +55,7 @@ export function LandingHero() {
             href="/auth/sign-up"
             className="px-8 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-lg hover:opacity-90 transition-opacity glow-primary"
           >
-            Comenzar Aventura
+            Comenzar mi travesía :D
           </Link>
           <Link
             href="/auth/login"

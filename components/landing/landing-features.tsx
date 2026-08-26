@@ -12,8 +12,8 @@ const features = [
   },
   {
     icon: Brain,
-    title: "Claude genera preguntas",
-    description: "Claude analiza tu material y crea preguntas de opcion multiple adaptadas al contenido.",
+    title: "La IA genera preguntas",
+    description: "La IA analiza tu material y crea preguntas de opcion multiple adaptadas al contenido.",
     color: "text-primary",
   },
   {

@@ -19,14 +19,14 @@ export function LandingCTA() {
           Tu cerebro es tu mejor arma
         </h2>
         <p className="text-muted-foreground mb-8 leading-relaxed">
-          Disenado especialmente para estudiantes con TDAH. Microdesafios rapidos,
+          Diseñado especialmente para estudiantes con TDAH. Microdesafios rapidos,
           recompensas inmediatas y cero aburrimiento.
         </p>
         <Link
           href="/auth/sign-up"
           className="inline-block px-8 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity glow-primary"
         >
-          Unirme ahora
+          Unirme ahora!
         </Link>
       </motion.div>
     </section>

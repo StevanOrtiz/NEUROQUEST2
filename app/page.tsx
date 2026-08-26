@@ -39,7 +39,7 @@ export default async function HomePage() {
                 href="/auth/login"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                Iniciar Sesion
+                Iniciar Sesión
               </Link>
               <Link
                 href="/auth/sign-up"
